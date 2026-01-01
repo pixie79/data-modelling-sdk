@@ -151,11 +151,19 @@ jobs:
           # Create the package file (.crate)
           cargo package
 
+      - name: Login to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          # Use cargo login with environment variable (recommended approach)
+          # This avoids the deprecated --token flag warning
+          echo "$CARGO_REGISTRY_TOKEN" | cargo login
+
       - name: Verify publish readiness (dry-run)
         run: |
           # Use cargo publish --dry-run to verify everything is ready for publishing
           # This checks metadata, dependencies, and registry compatibility
-          cargo publish --dry-run --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          cargo publish --dry-run
 
       - name: Publish to crates.io
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish
