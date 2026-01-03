@@ -2,6 +2,7 @@
 //!
 //! Exports CADSAsset models to CADS v1.0 YAML format.
 
+use crate::export::ExportError;
 use crate::models::cads::*;
 use serde_yaml;
 
@@ -9,6 +10,19 @@ use serde_yaml;
 pub struct CADSExporter;
 
 impl CADSExporter {
+    /// Export a CADS asset to CADS v1.0 YAML format (instance method for WASM compatibility)
+    ///
+    /// # Arguments
+    ///
+    /// * `asset` - The CADS asset to export
+    ///
+    /// # Returns
+    ///
+    /// A Result containing the YAML string in CADS v1.0 format, or an ExportError
+    pub fn export(&self, asset: &CADSAsset) -> Result<String, ExportError> {
+        Ok(Self::export_asset(asset))
+    }
+
     /// Export a CADS asset to CADS v1.0 YAML format
     ///
     /// # Arguments

@@ -643,3 +643,179 @@ definitions:
         );
     }
 }
+
+mod databricks_sql_tests {
+    use super::*;
+
+    #[test]
+    fn test_databricks_identifier_basic() {
+        let importer = SQLImporter::new("databricks");
+        // Note: USING DELTA is not supported by sqlparser, so we test without it
+        // The IDENTIFIER() preprocessing is what we're testing here
+        let sql = "CREATE TABLE IDENTIFIER(:catalog || '.schema.example_table') (id STRING COMMENT 'Unique identifier', name STRING COMMENT 'Name of the record');";
+        let result = importer.parse(sql).unwrap();
+
+        assert!(result.errors.is_empty());
+        assert_eq!(result.tables.len(), 1);
+        assert_eq!(
+            result.tables[0].name.as_deref(),
+            Some("schema.example_table")
+        );
+        assert_eq!(result.tables[0].columns.len(), 2);
+    }
+
+    #[test]
+    fn test_databricks_variables_in_types() {
+        let importer = SQLImporter::new("databricks");
+        let sql = r#"
+            CREATE TABLE example (
+                id STRING,
+                metadata STRUCT<key: STRING, value: :value_type, timestamp: TIMESTAMP>,
+                items ARRAY<:element_type>,
+                nested ARRAY<STRUCT<field1: :nested_type, field2: STRING>>
+            );
+        "#;
+        let result = importer.parse(sql).unwrap();
+
+        if !result.errors.is_empty() {
+            eprintln!("Parse errors: {:?}", result.errors);
+        }
+        assert!(result.errors.is_empty());
+        assert_eq!(result.tables.len(), 1);
+        assert_eq!(result.tables[0].columns.len(), 4);
+
+        // Check that variables were replaced with STRING
+        assert!(
+            result.tables[0].columns[1]
+                .data_type
+                .contains("value: STRING")
+        );
+        // ARRAY<:element_type> becomes ARRAY<STRING> after variable replacement
+        assert!(result.tables[0].columns[2].data_type.contains("ARRAY"));
+        // Nested ARRAY<STRUCT<...>> should have variables replaced
+        assert!(
+            result.tables[0].columns[3]
+                .data_type
+                .contains("field1: STRING")
+        );
+    }
+
+    #[test]
+    fn test_databricks_metadata_variables() {
+        let importer = SQLImporter::new("databricks");
+        // Test COMMENT with variable - sqlparser supports this
+        let sql =
+            "CREATE TABLE example (id STRING, name STRING) COMMENT ':table_comment_variable';";
+        let result = importer.parse(sql).unwrap();
+
+        assert!(result.errors.is_empty());
+        assert_eq!(result.tables.len(), 1);
+        assert_eq!(result.tables[0].columns.len(), 2);
+
+        // Note: TBLPROPERTIES is not supported by sqlparser, so we test COMMENT separately
+        // TBLPROPERTIES would require preprocessing to remove before parsing
+    }
+
+    #[test]
+    fn test_databricks_column_variables() {
+        let importer = SQLImporter::new("databricks");
+        let sql =
+            "CREATE TABLE example (id :id_var STRING, name :name_var STRING, age :age_var INT);";
+        let result = importer.parse(sql).unwrap();
+
+        assert!(result.errors.is_empty());
+        assert_eq!(result.tables.len(), 1);
+        assert_eq!(result.tables[0].columns.len(), 3);
+        assert_eq!(result.tables[0].columns[0].name, "id");
+        assert_eq!(result.tables[0].columns[0].data_type, "STRING");
+        assert_eq!(result.tables[0].columns[1].name, "name");
+        assert_eq!(result.tables[0].columns[1].data_type, "STRING");
+        assert_eq!(result.tables[0].columns[2].name, "age");
+        assert_eq!(result.tables[0].columns[2].data_type, "INT");
+    }
+
+    #[test]
+    fn test_databricks_views_and_tables() {
+        let importer = SQLImporter::new("databricks");
+        let sql = r#"
+            CREATE TABLE table1 (id STRING, name STRING);
+            CREATE VIEW view1 AS SELECT id, name FROM table1;
+            CREATE TABLE table2 (value INT);
+        "#;
+        let result = importer.parse(sql).unwrap();
+
+        assert!(result.errors.is_empty());
+        // Should import both tables and views
+        assert_eq!(result.tables.len(), 3);
+        assert_eq!(result.tables[0].name.as_deref(), Some("table1"));
+        assert_eq!(result.tables[1].name.as_deref(), Some("view1"));
+        assert_eq!(result.tables[2].name.as_deref(), Some("table2"));
+    }
+
+    #[test]
+    fn test_databricks_backward_compatibility() {
+        // Verify existing dialects still work
+        let postgres_importer = SQLImporter::new("postgres");
+        let mysql_importer = SQLImporter::new("mysql");
+        let sqlite_importer = SQLImporter::new("sqlite");
+        let generic_importer = SQLImporter::new("generic");
+
+        let sql = "CREATE TABLE test (id INT PRIMARY KEY, name VARCHAR(100));";
+
+        assert!(postgres_importer.parse(sql).unwrap().errors.is_empty());
+        assert!(mysql_importer.parse(sql).unwrap().errors.is_empty());
+        assert!(sqlite_importer.parse(sql).unwrap().errors.is_empty());
+        assert!(generic_importer.parse(sql).unwrap().errors.is_empty());
+    }
+
+    #[test]
+    fn test_databricks_full_example() {
+        // Full example from GitHub issue #13
+        let importer = SQLImporter::new("databricks");
+        let sql = r#"
+            CREATE TABLE IF NOT EXISTS IDENTIFIER(:catalog_name || '.schema.example_table') (
+                id STRING COMMENT 'Unique identifier for each record.',
+                name STRING COMMENT 'Name of the record.',
+                rulesTriggered ARRAY<STRUCT<
+                    id: STRING,
+                    name: STRING,
+                    alertOperation: STRUCT<
+                        name: STRING,
+                        revert: :variable_type,
+                        timestamp: TIMESTAMP
+                    >
+                >>,
+                metadata STRUCT<
+                    key: STRING,
+                    value: :value_type,
+                    timestamp: TIMESTAMP
+                >,
+                items ARRAY<:element_type>
+            );
+        "#;
+        let result = importer.parse(sql).unwrap();
+
+        assert!(result.errors.is_empty());
+        assert_eq!(result.tables.len(), 1);
+        assert_eq!(
+            result.tables[0].name.as_deref(),
+            Some("schema.example_table")
+        );
+        assert!(result.tables[0].columns.len() >= 5);
+    }
+
+    #[test]
+    fn test_databricks_mixed_sql() {
+        // Test Databricks SQL mixed with standard SQL
+        let importer = SQLImporter::new("databricks");
+        let sql = r#"
+            CREATE TABLE standard_table (id INT, name VARCHAR(100));
+            CREATE TABLE IDENTIFIER(:catalog || '.schema.databricks_table') (id STRING, metadata STRUCT<key: STRING, value: :value_type>);
+            CREATE VIEW standard_view AS SELECT * FROM standard_table;
+        "#;
+        let result = importer.parse(sql).unwrap();
+
+        assert!(result.errors.is_empty());
+        assert_eq!(result.tables.len(), 3);
+    }
+}
