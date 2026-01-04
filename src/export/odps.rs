@@ -2,6 +2,7 @@
 //!
 //! Exports ODPSDataProduct models to ODPS YAML format.
 
+use crate::export::ExportError;
 use crate::models::odps::*;
 use serde_yaml;
 
@@ -9,6 +10,19 @@ use serde_yaml;
 pub struct ODPSExporter;
 
 impl ODPSExporter {
+    /// Export a Data Product to ODPS YAML format (instance method for WASM compatibility)
+    ///
+    /// # Arguments
+    ///
+    /// * `product` - The Data Product to export
+    ///
+    /// # Returns
+    ///
+    /// A Result containing the YAML string in ODPS format, or an ExportError
+    pub fn export(&self, product: &ODPSDataProduct) -> Result<String, ExportError> {
+        Ok(Self::export_product(product))
+    }
+
     /// Export a Data Product to ODPS YAML format
     ///
     /// # Arguments

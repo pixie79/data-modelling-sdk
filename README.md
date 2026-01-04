@@ -8,7 +8,7 @@ Copyright (c) 2025 Mark Olliver - Licensed under MIT
 
 - **Storage Backends**: File system, browser storage (IndexedDB/localStorage), and HTTP API
 - **Model Loading/Saving**: Load and save models from various storage backends
-- **Import/Export**: Import from SQL, ODCS, ODCL, JSON Schema, AVRO, Protobuf, CADS, ODPS, BPMN, DMN, OpenAPI; Export to various formats
+- **Import/Export**: Import from SQL (PostgreSQL, MySQL, SQLite, Generic, Databricks), ODCS, ODCL, JSON Schema, AVRO, Protobuf, CADS, ODPS, BPMN, DMN, OpenAPI; Export to various formats
 - **Business Domain Schema**: Organize systems, CADS nodes, and ODCS nodes within business domains
 - **Universal Converter**: Convert any format to ODCS v3.1.0 format
 - **OpenAPI to ODCS Converter**: Convert OpenAPI schema components to ODCS table definitions
@@ -130,7 +130,7 @@ console.log('Exported YAML:', exportedYaml);
 **Import/Export**:
 - `parseOdcsYaml(yamlContent: string): string` - Parse ODCS YAML to workspace structure
 - `exportToOdcsYaml(workspaceJson: string): string` - Export workspace to ODCS YAML
-- `importFromSql(sqlContent: string, dialect: string): string` - Import from SQL
+- `importFromSql(sqlContent: string, dialect: string): string` - Import from SQL (supported dialects: "postgres"/"postgresql", "mysql", "sqlite", "generic", "databricks")
 - `importFromAvro(avroContent: string): string` - Import from AVRO schema
 - `importFromJsonSchema(jsonSchemaContent: string): string` - Import from JSON Schema
 - `importFromProtobuf(protobufContent: string): string` - Import from Protobuf
@@ -139,7 +139,7 @@ console.log('Exported YAML:', exportedYaml);
 - `importBpmnModel(domainId: string, xmlContent: string, modelName?: string): string` - Import BPMN 2.0 XML model
 - `importDmnModel(domainId: string, xmlContent: string, modelName?: string): string` - Import DMN 1.3 XML model
 - `importOpenapiSpec(domainId: string, content: string, apiName?: string): string` - Import OpenAPI 3.1.1 specification
-- `exportToSql(workspaceJson: string, dialect: string): string` - Export to SQL
+- `exportToSql(workspaceJson: string, dialect: string): string` - Export to SQL (supported dialects: "postgres"/"postgresql", "mysql", "sqlite", "generic", "databricks")
 - `exportToAvro(workspaceJson: string): string` - Export to AVRO schema
 - `exportToJsonSchema(workspaceJson: string): string` - Export to JSON Schema
 - `exportToProtobuf(workspaceJson: string): string` - Export to Protobuf

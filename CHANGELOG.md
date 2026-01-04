@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-01-XX
+
+### Added
+
+- **feat(sql)**: Databricks SQL dialect support
+  - `DatabricksDialect` implementation for parsing Databricks-specific SQL syntax
+  - Support for `IDENTIFIER()` function calls in table/view names with variable references and string concatenation
+  - Support for variable references (`:variable_name`) in `STRUCT` and `ARRAY` type definitions
+  - Support for variable references in column definitions (`column_name :variable TYPE`)
+  - Support for variable references in `COMMENT` clauses
+  - Support for `CREATE VIEW` and `CREATE MATERIALIZED VIEW` statements
+  - Complex type extraction and restoration for `STRUCT<...>` and `ARRAY<...>` types
+  - SQL normalization for handling multiline SQL statements
+  - Comprehensive test coverage with unit and integration tests
+  - Backward compatibility maintained with existing SQL dialects (PostgreSQL, MySQL, SQLite, Generic)
+
+### Changed
+
+- **docs**: Updated documentation to list all supported SQL dialects (PostgreSQL, MySQL, SQLite, Generic, Databricks)
+- **docs**: Enhanced `SQLImporter` documentation with Databricks dialect examples and usage
+
 ## [1.5.0] - 2026-01-03
 
 ### Added
