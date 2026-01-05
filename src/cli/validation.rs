@@ -5,7 +5,7 @@ use crate::cli::error::CliError;
 /// Validate an ODCS file against the ODCS JSON Schema
 #[cfg(feature = "schema-validation")]
 pub fn validate_odcs(content: &str) -> Result<(), CliError> {
-    use jsonschema::JSONSchema;
+    use jsonschema::Validator;
     use serde_json::Value;
 
     // Load ODCS JSON Schema
@@ -13,7 +13,7 @@ pub fn validate_odcs(content: &str) -> Result<(), CliError> {
     let schema: Value = serde_json::from_str(schema_content)
         .map_err(|e| CliError::ValidationError(format!("Failed to load ODCS schema: {}", e)))?;
 
-    let compiled = JSONSchema::compile(&schema)
+    let validator = Validator::new(&schema)
         .map_err(|e| CliError::ValidationError(format!("Failed to compile ODCS schema: {}", e)))?;
 
     // Parse YAML content
@@ -21,9 +21,9 @@ pub fn validate_odcs(content: &str) -> Result<(), CliError> {
         .map_err(|e| CliError::ValidationError(format!("Failed to parse YAML: {}", e)))?;
 
     // Validate
-    if let Err(errors) = compiled.validate(&data) {
+    if let Err(errors) = validator.validate(&data) {
         let error_messages: Vec<String> = errors
-            .map(|e| format!("{}: {}", e.instance_path, e.to_string()))
+            .map(|e| format!("{}: {}", e.instance_path, e))
             .collect();
         return Err(CliError::ValidationError(format!(
             "ODCS validation failed:\n{}",
@@ -43,7 +43,7 @@ pub fn validate_odcs(_content: &str) -> Result<(), CliError> {
 /// Validate an OpenAPI file against the OpenAPI JSON Schema
 #[cfg(all(feature = "schema-validation", feature = "openapi"))]
 pub fn validate_openapi(content: &str) -> Result<(), CliError> {
-    use jsonschema::JSONSchema;
+    use jsonschema::Validator;
     use serde_json::Value;
 
     // Load OpenAPI JSON Schema
@@ -51,7 +51,7 @@ pub fn validate_openapi(content: &str) -> Result<(), CliError> {
     let schema: Value = serde_json::from_str(schema_content)
         .map_err(|e| CliError::ValidationError(format!("Failed to load OpenAPI schema: {}", e)))?;
 
-    let compiled = JSONSchema::compile(&schema).map_err(|e| {
+    let validator = Validator::new(&schema).map_err(|e| {
         CliError::ValidationError(format!("Failed to compile OpenAPI schema: {}", e))
     })?;
 
@@ -65,9 +65,9 @@ pub fn validate_openapi(content: &str) -> Result<(), CliError> {
     };
 
     // Validate
-    if let Err(errors) = compiled.validate(&data) {
+    if let Err(errors) = validator.validate(&data) {
         let error_messages: Vec<String> = errors
-            .map(|e| format!("{}: {}", e.instance_path, e.to_string()))
+            .map(|e| format!("{}: {}", e.instance_path, e))
             .collect();
         return Err(CliError::ValidationError(format!(
             "OpenAPI validation failed:\n{}",
@@ -120,7 +120,7 @@ pub fn validate_avro(content: &str) -> Result<(), CliError> {
 /// Validate JSON Schema file
 #[cfg(feature = "schema-validation")]
 pub fn validate_json_schema(content: &str) -> Result<(), CliError> {
-    use jsonschema::JSONSchema;
+    use jsonschema::Validator;
     use serde_json::Value;
 
     // Parse JSON Schema
@@ -128,7 +128,7 @@ pub fn validate_json_schema(content: &str) -> Result<(), CliError> {
         .map_err(|e| CliError::ValidationError(format!("Failed to parse JSON Schema: {}", e)))?;
 
     // Try to compile the schema (this validates the schema itself)
-    JSONSchema::compile(&schema)
+    Validator::new(&schema)
         .map_err(|e| CliError::ValidationError(format!("Invalid JSON Schema: {}", e)))?;
 
     Ok(())

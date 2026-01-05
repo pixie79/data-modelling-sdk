@@ -15,8 +15,6 @@ use data_modelling_sdk::cli::commands::import::{
     handle_import_odcs, handle_import_protobuf, handle_import_sql,
 };
 #[cfg(feature = "cli")]
-use data_modelling_sdk::cli::error::CliError;
-#[cfg(feature = "cli")]
 use std::path::PathBuf;
 
 #[cfg(feature = "cli")]

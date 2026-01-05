@@ -591,7 +591,6 @@ fn resolve_openapi_references(
 #[cfg(feature = "openapi")]
 pub fn handle_import_openapi(args: &ImportArgs) -> Result<(), CliError> {
     use crate::convert::openapi_to_odcs::OpenAPIToODCSConverter;
-    use uuid::Uuid;
 
     // Load OpenAPI input
     let mut openapi_content = load_input(&args.input)?;

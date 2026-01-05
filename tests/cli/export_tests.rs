@@ -6,10 +6,6 @@ use data_modelling_sdk::cli::commands::export::{
     handle_export_protobuf,
 };
 #[cfg(feature = "cli")]
-use data_modelling_sdk::models::{Column, Table};
-#[cfg(feature = "cli")]
-use std::io::Write;
-#[cfg(feature = "cli")]
 use tempfile::NamedTempFile;
 
 #[cfg(feature = "cli")]

@@ -98,6 +98,7 @@ impl ProtobufExporter {
         })
     }
 
+    #[allow(dead_code)]
     fn export_model_from_tables(tables: &[Table]) -> String {
         Self::export_model_from_tables_with_version(tables, "proto3")
     }

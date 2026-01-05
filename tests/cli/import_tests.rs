@@ -10,8 +10,6 @@ use data_modelling_sdk::cli::error::CliError;
 #[cfg(feature = "cli")]
 use std::io::Write;
 #[cfg(feature = "cli")]
-use std::path::PathBuf;
-#[cfg(feature = "cli")]
 use tempfile::NamedTempFile;
 
 #[cfg(feature = "cli")]

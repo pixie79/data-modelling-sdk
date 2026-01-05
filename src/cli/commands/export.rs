@@ -74,7 +74,7 @@ pub fn load_tables_from_odcs(input_path: &PathBuf) -> Result<Vec<crate::models::
 }
 
 /// Check if file exists and handle overwrite
-pub fn check_file_overwrite(output_path: &PathBuf, force: bool) -> Result<(), CliError> {
+pub fn check_file_overwrite(output_path: &std::path::Path, force: bool) -> Result<(), CliError> {
     if output_path.exists() && !force {
         return Err(CliError::InvalidArgument(format!(
             "Output file exists: {}. Use --force to overwrite.",
@@ -218,8 +218,8 @@ pub fn check_protoc_available(protoc_path: Option<&PathBuf>) -> Result<(), CliEr
 
 /// Generate Protobuf descriptor file using protoc
 pub fn generate_protobuf_descriptor(
-    proto_file: &PathBuf,
-    output_file: &PathBuf,
+    proto_file: &std::path::Path,
+    output_file: &std::path::Path,
     protoc_path: Option<&PathBuf>,
 ) -> Result<(), CliError> {
     let protoc = protoc_path
