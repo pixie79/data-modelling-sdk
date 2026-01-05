@@ -62,15 +62,13 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Build CLI binary
+        shell: bash
         run: |
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            cargo build --release --bin data-modelling-cli --features cli,openapi --target ${{ matrix.target }}
-          else
-            cargo build --release --bin data-modelling-cli --features cli,openapi --target ${{ matrix.target }}
-          fi
+          cargo build --release --bin data-modelling-cli --features cli,openapi --target ${{ matrix.target }}
 
       - name: Get version from tag or branch
         id: version
+        shell: bash
         run: |
           if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
             # Tag release: use tag version
@@ -120,6 +118,7 @@ jobs:
           echo "binary_path=$BINARY_PATH" >> $GITHUB_OUTPUT
 
       - name: Output version info
+        shell: bash
         run: |
           echo "Version: ${{ steps.version.outputs.version }}"
           echo "Is Dev: ${{ steps.version.outputs.is_dev }}"
@@ -157,9 +156,15 @@ jobs:
         shell: bash
         run: |
           cd artifacts
-          find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) | while read file; do
-            sha256sum "$file" > "${file}.sha256"
-          done
+          if command -v sha256sum >/dev/null 2>&1; then
+            find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) | while read file; do
+              sha256sum "$file" > "${file}.sha256"
+            done
+          elif command -v shasum >/dev/null 2>&1; then
+            find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) | while read file; do
+              shasum -a 256 "$file" | awk '{print $1}' > "${file}.sha256"
+            done
+          fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
