@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.6] - 2025-01-06
+
+### Fixed
+
+- Fixed macOS code signing by ensuring MACOS_SIGNING_IDENTITY secret is properly configured
+
 ## [1.8.5] - 2025-01-06
 
 ### Added
