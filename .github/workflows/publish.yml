@@ -1,9 +1,9 @@
 name: Publish
 
 on:
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch: # Allow manual triggering
   push:
-    branches: [main]  # Trigger on merge to main
+    branches: [main] # Trigger on merge to main
 
 env:
   CARGO_TERM_COLOR: always
@@ -16,10 +16,12 @@ jobs:
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required for git tag operations and CHANGELOG verification
+          fetch-depth: 0 # Required for git tag operations and CHANGELOG verification
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Rust
@@ -169,3 +171,12 @@ jobs:
 
       - name: Publish to crates.io
         run: cargo publish
+
+  release:
+    name: Release CLI and WASM
+    needs: publish
+    uses: ./.github/workflows/release-cli.yml
+    with:
+      version: ${{ needs.publish.outputs.version }}
+    permissions:
+      contents: write
