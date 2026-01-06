@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-01-06
+
+### Added
+
+- **feat(cli)**: Added `validate` command for standalone schema validation
+  - Validates files against their respective schemas without importing
+  - Supports formats: ODCS, ODCL, ODPS, CADS, OpenAPI, Protobuf, Avro, JSON Schema, SQL
+  - Usage: `data-modelling-cli validate <format> [file]`
+  - Accepts stdin with `-` as input
+
+- **feat(import)**: Fixed protobuf JAR import to properly create parent columns for nested messages
+  - Nested messages now create parent column with `OBJECT` or `ARRAY<OBJECT>` type
+  - Repeated message fields use `.[]` notation for nested properties
+  - ODCS export now correctly includes nested column structure
+
+### Changed
+
+- **refactor(validation)**: ODPS and OpenAPI validation now only require `schema-validation` feature
+  - Removed separate `odps-validation` and `openapi` feature requirements for validation
+  - Simplifies feature configuration for validation-only use cases
+
 ## [1.9.0] - 2025-01-06
 
 ### Added

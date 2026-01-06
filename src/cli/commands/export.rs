@@ -1,9 +1,7 @@
 //! Export command handlers
 
 use crate::cli::error::CliError;
-use crate::export::{
-    AvroExporter, JSONSchemaExporter, ODCSExporter, ODPSExporter, ProtobufExporter,
-};
+use crate::export::{AvroExporter, JSONSchemaExporter, ODCSExporter, ProtobufExporter};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -292,16 +290,11 @@ pub fn handle_export_protobuf_descriptor(args: &ExportArgs) -> Result<(), CliErr
     Ok(())
 }
 
-/// Detect if content is ODPS format
-fn is_odps_format(content: &str) -> bool {
-    content.contains("apiVersion:") && content.contains("kind: DataProduct")
-}
-
 /// Handle ODPS export command
 ///
 /// ODPS is a native format - it only accepts ODPS input files.
 /// ODCS cannot be converted to ODPS as they are different format types.
-pub fn handle_export_odps(args: &ExportArgs) -> Result<(), CliError> {
+pub fn handle_export_odps(_args: &ExportArgs) -> Result<(), CliError> {
     #[cfg(not(feature = "odps-validation"))]
     {
         return Err(CliError::InvalidArgument(
@@ -311,6 +304,12 @@ pub fn handle_export_odps(args: &ExportArgs) -> Result<(), CliError> {
 
     #[cfg(feature = "odps-validation")]
     {
+        /// Detect if content is ODPS format
+        fn is_odps_format(content: &str) -> bool {
+            content.contains("apiVersion:") && content.contains("kind: DataProduct")
+        }
+
+        let args = _args;
         // Check overwrite
         check_file_overwrite(&args.output, args.force)?;
 

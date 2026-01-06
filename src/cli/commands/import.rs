@@ -1291,11 +1291,37 @@ fn flatten_message_to_columns(
                 });
 
             if let Some(msg) = nested_msg {
+                // For nested messages, we need to:
+                // 1. Add a parent column with OBJECT or ARRAY<OBJECT> type
+                // 2. Add nested columns with dot notation (and .[] for arrays)
+
+                let (parent_data_type, nested_prefix) = if field.repeated {
+                    // Repeated message = ARRAY<OBJECT> with .[] notation for nested fields
+                    ("ARRAY<OBJECT>".to_string(), format!("{}.[]", column_name))
+                } else {
+                    // Single message = OBJECT with dot notation for nested fields
+                    ("OBJECT".to_string(), column_name.clone())
+                };
+
+                // Add parent column for the nested message
+                columns.push(ColumnData {
+                    name: column_name.clone(),
+                    data_type: parent_data_type,
+                    physical_type: None,
+                    nullable: field.optional || field.repeated,
+                    primary_key: false,
+                    description: Some(format!("Nested message type: {}", field.field_type)),
+                    quality: None,
+                    relationships: Vec::new(),
+                    enum_values: None,
+                });
+
+                // Recursively flatten nested message with appropriate prefix
                 let nested_columns = flatten_message_to_columns(
                     msg,
                     all_messages,
                     enum_names,
-                    &column_name,
+                    &nested_prefix,
                     visited,
                     max_depth - 1,
                 );
