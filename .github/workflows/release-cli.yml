@@ -71,6 +71,72 @@ jobs:
         run: |
           cargo build --release --bin data-modelling-cli --features cli,openapi,odps-validation --target ${{ matrix.target }}
 
+      - name: Import Code Signing Certificate (macOS)
+        if: startsWith(matrix.os, 'macos')
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          MACOS_KEYCHAIN_PWD: ${{ secrets.MACOS_KEYCHAIN_PWD }}
+        run: |
+          if [ -n "$MACOS_CERTIFICATE" ]; then
+            # Create a temporary keychain
+            KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+            security create-keychain -p "$MACOS_KEYCHAIN_PWD" $KEYCHAIN_PATH
+            security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+            security unlock-keychain -p "$MACOS_KEYCHAIN_PWD" $KEYCHAIN_PATH
+
+            # Import certificate
+            echo "$MACOS_CERTIFICATE" | base64 --decode > $RUNNER_TEMP/certificate.p12
+            security import $RUNNER_TEMP/certificate.p12 -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+            security list-keychain -d user -s $KEYCHAIN_PATH
+
+            # Allow codesign to access the key
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_KEYCHAIN_PWD" $KEYCHAIN_PATH
+            echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+            echo "SIGNING_ENABLED=true" >> $GITHUB_ENV
+          else
+            echo "No signing certificate provided, skipping code signing"
+            echo "SIGNING_ENABLED=false" >> $GITHUB_ENV
+          fi
+
+      - name: Sign macOS binary
+        if: startsWith(matrix.os, 'macos') && env.SIGNING_ENABLED == 'true'
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          BINARY_PATH="target/${{ matrix.target }}/release/data-modelling-cli"
+          echo "Signing binary: $BINARY_PATH"
+          codesign --force --options runtime --sign "$MACOS_SIGNING_IDENTITY" "$BINARY_PATH"
+          echo "Verifying signature..."
+          codesign --verify --verbose "$BINARY_PATH"
+
+      - name: Notarize macOS binary
+        if: startsWith(matrix.os, 'macos') && env.SIGNING_ENABLED == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_ID_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+            BINARY_PATH="target/${{ matrix.target }}/release/data-modelling-cli"
+
+            # Create a zip for notarization
+            NOTARIZE_ZIP="$RUNNER_TEMP/data-modelling-cli-notarize.zip"
+            ditto -c -k --keepParent "$BINARY_PATH" "$NOTARIZE_ZIP"
+
+            # Submit for notarization
+            echo "Submitting for notarization..."
+            xcrun notarytool submit "$NOTARIZE_ZIP" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_ID_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait
+
+            echo "Notarization complete"
+          else
+            echo "Apple notarization credentials not provided, skipping notarization"
+          fi
+
       - name: Get version
         id: version
         shell: bash
