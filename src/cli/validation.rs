@@ -114,7 +114,7 @@ pub fn validate_odcs(_content: &str) -> Result<(), CliError> {
 }
 
 /// Validate an OpenAPI file against the OpenAPI JSON Schema
-#[cfg(all(feature = "schema-validation", feature = "openapi"))]
+#[cfg(feature = "schema-validation")]
 pub fn validate_openapi(content: &str) -> Result<(), CliError> {
     use jsonschema::Validator;
     use serde_json::Value;
@@ -148,7 +148,7 @@ pub fn validate_openapi(content: &str) -> Result<(), CliError> {
     Ok(())
 }
 
-#[cfg(not(all(feature = "schema-validation", feature = "openapi")))]
+#[cfg(not(feature = "schema-validation"))]
 pub fn validate_openapi(_content: &str) -> Result<(), CliError> {
     // Validation disabled - feature not enabled
     Ok(())
@@ -211,19 +211,19 @@ pub fn validate_json_schema(_content: &str) -> Result<(), CliError> {
 }
 
 /// Validate an ODPS file against the ODPS JSON Schema
-#[cfg(feature = "odps-validation")]
+#[cfg(feature = "schema-validation")]
 pub fn validate_odps(content: &str) -> Result<(), CliError> {
     validate_odps_internal(content).map_err(CliError::ValidationError)
 }
 
-#[cfg(not(feature = "odps-validation"))]
+#[cfg(not(feature = "schema-validation"))]
 pub fn validate_odps(_content: &str) -> Result<(), CliError> {
     // Validation disabled - feature not enabled
     Ok(())
 }
 
 /// Internal ODPS validation function that returns a string error (used by both CLI and import/export modules)
-#[cfg(feature = "odps-validation")]
+#[cfg(feature = "schema-validation")]
 pub(crate) fn validate_odps_internal(content: &str) -> Result<(), String> {
     use jsonschema::Validator;
     use serde_json::Value;
@@ -258,7 +258,7 @@ pub(crate) fn validate_odps_internal(content: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(not(feature = "odps-validation"))]
+#[cfg(not(feature = "schema-validation"))]
 pub(crate) fn validate_odps_internal(_content: &str) -> Result<(), String> {
     // Validation disabled - feature not enabled
     Ok(())
@@ -336,5 +336,18 @@ pub(crate) fn validate_cads_internal(content: &str) -> Result<(), String> {
 #[cfg(not(feature = "schema-validation"))]
 pub(crate) fn validate_cads_internal(_content: &str) -> Result<(), String> {
     // Validation disabled - feature not enabled
+    Ok(())
+}
+
+/// Validate SQL syntax using sqlparser
+pub fn validate_sql(content: &str) -> Result<(), CliError> {
+    use sqlparser::dialect::GenericDialect;
+    use sqlparser::parser::Parser;
+
+    let dialect = GenericDialect {};
+
+    Parser::parse_sql(&dialect, content)
+        .map_err(|e| CliError::ValidationError(format!("SQL validation failed: {}", e)))?;
+
     Ok(())
 }

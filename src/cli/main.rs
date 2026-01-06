@@ -7,14 +7,17 @@ use data_modelling_sdk::cli::commands::export::{
     ExportArgs, ExportFormat, handle_export_avro, handle_export_json_schema, handle_export_odcs,
     handle_export_odps, handle_export_protobuf, handle_export_protobuf_descriptor,
 };
+#[cfg(all(feature = "cli", feature = "odps-validation"))]
+use data_modelling_sdk::cli::commands::import::handle_import_odps;
 #[cfg(all(feature = "cli", feature = "openapi"))]
 use data_modelling_sdk::cli::commands::import::handle_import_openapi;
 #[cfg(feature = "cli")]
 use data_modelling_sdk::cli::commands::import::{
     ImportArgs, ImportFormat, InputSource, handle_import_avro, handle_import_json_schema,
-    handle_import_odcl, handle_import_odcs, handle_import_odps, handle_import_protobuf,
-    handle_import_sql,
+    handle_import_odcl, handle_import_odcs, handle_import_protobuf, handle_import_sql,
 };
+#[cfg(feature = "cli")]
+use data_modelling_sdk::cli::commands::validate::handle_validate;
 #[cfg(feature = "cli")]
 use std::path::PathBuf;
 
@@ -86,6 +89,15 @@ enum Commands {
         #[arg(long, default_value = "proto3")]
         protobuf_version: String,
     },
+    /// Validate a file against its schema
+    Validate {
+        /// Format to validate
+        #[arg(value_enum)]
+        format: ValidateFormatArg,
+        /// Input file path or '-' for stdin
+        #[arg(default_value = "-")]
+        input: String,
+    },
 }
 
 #[cfg(feature = "cli")]
@@ -110,6 +122,29 @@ enum ExportFormatArg {
     Protobuf,
     ProtobufDescriptor,
     Odps,
+}
+
+#[cfg(feature = "cli")]
+#[derive(clap::ValueEnum, Clone, Debug)]
+enum ValidateFormatArg {
+    /// ODCS v3.1.0 (Open Data Contract Standard)
+    Odcs,
+    /// Legacy ODCL format
+    Odcl,
+    /// ODPS (Open Data Product Standard)
+    Odps,
+    /// CADS (Compute Asset Description Specification)
+    Cads,
+    /// OpenAPI 3.1.1 specification
+    Openapi,
+    /// Protocol Buffers
+    Protobuf,
+    /// Apache Avro
+    Avro,
+    /// JSON Schema
+    JsonSchema,
+    /// SQL (CREATE TABLE statements)
+    Sql,
 }
 
 #[cfg(feature = "cli")]
@@ -251,6 +286,20 @@ fn main() {
                 ExportFormat::ProtobufDescriptor => handle_export_protobuf_descriptor(&args),
                 ExportFormat::Odps => handle_export_odps(&args),
             }
+        }
+        Commands::Validate { format, input } => {
+            let validate_format = match format {
+                ValidateFormatArg::Odcs => "odcs",
+                ValidateFormatArg::Odcl => "odcl",
+                ValidateFormatArg::Odps => "odps",
+                ValidateFormatArg::Cads => "cads",
+                ValidateFormatArg::Openapi => "openapi",
+                ValidateFormatArg::Protobuf => "protobuf",
+                ValidateFormatArg::Avro => "avro",
+                ValidateFormatArg::JsonSchema => "json-schema",
+                ValidateFormatArg::Sql => "sql",
+            };
+            handle_validate(validate_format, &input)
         }
     };
 
