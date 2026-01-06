@@ -30,23 +30,92 @@ pub enum ConversionError {
     NestedObjectConversionFailed(String),
 }
 
+/// Parse STRUCT type columns into nested columns with dot notation
+fn parse_struct_columns(parent_name: &str, data_type: &str, col_data: &ColumnData) -> Vec<Column> {
+    let importer = ODCSImporter::new();
+
+    // Try to parse STRUCT type using ODCS importer's logic
+    let field_data = serde_json::Map::new();
+
+    match importer.parse_struct_type_from_string(parent_name, data_type, &field_data) {
+        Ok(nested_cols) if !nested_cols.is_empty() => {
+            let mut all_cols = Vec::new();
+
+            // Add parent column with simplified type
+            let parent_data_type = if data_type.to_uppercase().starts_with("ARRAY<") {
+                "ARRAY<STRUCT<...>>".to_string()
+            } else {
+                "STRUCT<...>".to_string()
+            };
+
+            all_cols.push(Column {
+                name: parent_name.to_string(),
+                data_type: parent_data_type,
+                physical_type: col_data.physical_type.clone(),
+                nullable: col_data.nullable,
+                primary_key: col_data.primary_key,
+                secondary_key: false,
+                composite_key: None,
+                foreign_key: None,
+                constraints: Vec::new(),
+                description: col_data.description.clone().unwrap_or_default(),
+                errors: Vec::new(),
+                quality: col_data.quality.clone().unwrap_or_default(),
+                relationships: col_data.relationships.clone(),
+                enum_values: col_data.enum_values.clone().unwrap_or_default(),
+                column_order: 0,
+                nested_data: None,
+            });
+
+            // Add nested columns
+            all_cols.extend(nested_cols);
+            all_cols
+        }
+        _ => Vec::new(),
+    }
+}
+
 /// Reconstruct a Table from TableData
 ///
 /// Converts import-format TableData/ColumnData into full Table/Column structs
-/// suitable for export operations.
+/// suitable for export operations. Handles STRUCT types by flattening them
+/// into nested columns with dot notation:
+/// - STRUCT<...> → parent.field
+/// - ARRAY<STRUCT<...>> → parent.[].field
+/// - MAP types are kept as-is (keys are dynamic)
 fn table_data_to_table(table_data: &TableData) -> Table {
     let table_name = table_data
         .name
         .clone()
         .unwrap_or_else(|| format!("table_{}", table_data.table_index));
 
-    let columns: Vec<Column> = table_data
-        .columns
-        .iter()
-        .map(column_data_to_column)
-        .collect();
+    let mut all_columns = Vec::new();
 
-    Table::new(table_name, columns)
+    for col_data in &table_data.columns {
+        let data_type_upper = col_data.data_type.to_uppercase();
+        let is_map = data_type_upper.starts_with("MAP<");
+
+        // Skip parsing for MAP types - keys are dynamic
+        if is_map {
+            all_columns.push(column_data_to_column(col_data));
+            continue;
+        }
+
+        // For STRUCT or ARRAY<STRUCT> types, try to parse and create nested columns
+        let is_struct = data_type_upper.contains("STRUCT<");
+        if is_struct {
+            let struct_cols = parse_struct_columns(&col_data.name, &col_data.data_type, col_data);
+            if !struct_cols.is_empty() {
+                all_columns.extend(struct_cols);
+                continue;
+            }
+        }
+
+        // Regular column or STRUCT parsing failed - add as-is
+        all_columns.push(column_data_to_column(col_data));
+    }
+
+    Table::new(table_name, all_columns)
 }
 
 /// Convert ColumnData to Column

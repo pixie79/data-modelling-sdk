@@ -202,6 +202,115 @@ mod wasm {
         serde_json::to_string(result).map_err(serialization_error)
     }
 
+    /// Flatten STRUCT columns in ImportResult into nested columns with dot notation
+    ///
+    /// This processes each table's columns and expands STRUCT types into individual
+    /// columns with parent.child naming:
+    /// - STRUCT<field1: TYPE1, field2: TYPE2> → parent.field1, parent.field2
+    /// - ARRAY<STRUCT<...>> → parent.[].field1, parent.[].field2
+    /// - MAP types are kept as-is (keys are dynamic)
+    fn flatten_struct_columns(result: ImportResult) -> ImportResult {
+        use crate::import::{ColumnData, ODCSImporter, TableData};
+
+        let importer = ODCSImporter::new();
+
+        let tables = result
+            .tables
+            .into_iter()
+            .map(|table_data| {
+                let mut all_columns = Vec::new();
+
+                for col_data in table_data.columns {
+                    let data_type_upper = col_data.data_type.to_uppercase();
+                    let is_map = data_type_upper.starts_with("MAP<");
+
+                    // Skip parsing for MAP types - keys are dynamic
+                    if is_map {
+                        all_columns.push(col_data);
+                        continue;
+                    }
+
+                    // For STRUCT or ARRAY<STRUCT> types, try to parse and create nested columns
+                    let is_struct = data_type_upper.contains("STRUCT<");
+                    if is_struct {
+                        let field_data = serde_json::Map::new();
+                        if let Ok(nested_cols) = importer.parse_struct_type_from_string(
+                            &col_data.name,
+                            &col_data.data_type,
+                            &field_data,
+                        ) {
+                            if !nested_cols.is_empty() {
+                                // Add parent column with simplified type
+                                let parent_data_type =
+                                    if col_data.data_type.to_uppercase().starts_with("ARRAY<") {
+                                        "ARRAY<STRUCT<...>>".to_string()
+                                    } else {
+                                        "STRUCT<...>".to_string()
+                                    };
+
+                                all_columns.push(ColumnData {
+                                    name: col_data.name.clone(),
+                                    data_type: parent_data_type,
+                                    physical_type: col_data.physical_type.clone(),
+                                    nullable: col_data.nullable,
+                                    primary_key: col_data.primary_key,
+                                    description: col_data.description.clone(),
+                                    quality: col_data.quality.clone(),
+                                    relationships: col_data.relationships.clone(),
+                                    enum_values: col_data.enum_values.clone(),
+                                });
+
+                                // Add nested columns converted from Column to ColumnData
+                                for nested_col in nested_cols {
+                                    all_columns.push(ColumnData {
+                                        name: nested_col.name,
+                                        data_type: nested_col.data_type,
+                                        physical_type: nested_col.physical_type,
+                                        nullable: nested_col.nullable,
+                                        primary_key: nested_col.primary_key,
+                                        description: if nested_col.description.is_empty() {
+                                            None
+                                        } else {
+                                            Some(nested_col.description)
+                                        },
+                                        quality: if nested_col.quality.is_empty() {
+                                            None
+                                        } else {
+                                            Some(nested_col.quality)
+                                        },
+                                        relationships: nested_col.relationships,
+                                        enum_values: if nested_col.enum_values.is_empty() {
+                                            None
+                                        } else {
+                                            Some(nested_col.enum_values)
+                                        },
+                                    });
+                                }
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Regular column or STRUCT parsing failed - add as-is
+                    all_columns.push(col_data);
+                }
+
+                TableData {
+                    table_index: table_data.table_index,
+                    name: table_data.name,
+                    columns: all_columns,
+                }
+            })
+            .collect();
+
+        ImportResult {
+            tables,
+            tables_requiring_name: result.tables_requiring_name,
+            errors: result.errors,
+            ai_suggestions: result.ai_suggestions,
+        }
+    }
+
     /// Deserialize workspace structure from JSON string
     fn deserialize_workspace(json: &str) -> Result<DataModel, JsValue> {
         serde_json::from_str(json).map_err(deserialization_error)
@@ -220,7 +329,10 @@ mod wasm {
     pub fn parse_odcs_yaml(yaml_content: &str) -> Result<String, JsValue> {
         let mut importer = crate::import::ODCSImporter::new();
         match importer.import(yaml_content) {
-            Ok(result) => serialize_import_result(&result),
+            Ok(result) => {
+                let flattened = flatten_struct_columns(result);
+                serialize_import_result(&flattened)
+            }
             Err(err) => Err(import_error_to_js(err)),
         }
     }
@@ -244,7 +356,10 @@ mod wasm {
     pub fn parse_odcl_yaml(yaml_content: &str) -> Result<String, JsValue> {
         let mut importer = crate::import::ODCLImporter::new();
         match importer.import(yaml_content) {
-            Ok(result) => serialize_import_result(&result),
+            Ok(result) => {
+                let flattened = flatten_struct_columns(result);
+                serialize_import_result(&flattened)
+            }
             Err(err) => Err(import_error_to_js(err)),
         }
     }
@@ -302,7 +417,11 @@ mod wasm {
     pub fn import_from_sql(sql_content: &str, dialect: &str) -> Result<String, JsValue> {
         let importer = crate::import::SQLImporter::new(dialect);
         match importer.parse(sql_content) {
-            Ok(result) => serialize_import_result(&result),
+            Ok(result) => {
+                // Flatten STRUCT columns into nested columns with dot notation
+                let flattened = flatten_struct_columns(result);
+                serialize_import_result(&flattened)
+            }
             Err(err) => Err(parse_error(err)),
         }
     }
@@ -320,7 +439,10 @@ mod wasm {
     pub fn import_from_avro(avro_content: &str) -> Result<String, JsValue> {
         let importer = crate::import::AvroImporter::new();
         match importer.import(avro_content) {
-            Ok(result) => serialize_import_result(&result),
+            Ok(result) => {
+                let flattened = flatten_struct_columns(result);
+                serialize_import_result(&flattened)
+            }
             Err(err) => Err(import_error_to_js(err)),
         }
     }
@@ -338,7 +460,10 @@ mod wasm {
     pub fn import_from_json_schema(json_schema_content: &str) -> Result<String, JsValue> {
         let importer = crate::import::JSONSchemaImporter::new();
         match importer.import(json_schema_content) {
-            Ok(result) => serialize_import_result(&result),
+            Ok(result) => {
+                let flattened = flatten_struct_columns(result);
+                serialize_import_result(&flattened)
+            }
             Err(err) => Err(import_error_to_js(err)),
         }
     }
@@ -356,7 +481,10 @@ mod wasm {
     pub fn import_from_protobuf(protobuf_content: &str) -> Result<String, JsValue> {
         let importer = crate::import::ProtobufImporter::new();
         match importer.import(protobuf_content) {
-            Ok(result) => serialize_import_result(&result),
+            Ok(result) => {
+                let flattened = flatten_struct_columns(result);
+                serialize_import_result(&flattened)
+            }
             Err(err) => Err(import_error_to_js(err)),
         }
     }
