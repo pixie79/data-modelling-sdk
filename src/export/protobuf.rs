@@ -261,6 +261,10 @@ impl ProtobufExporter {
     }
 
     /// Map SQL/ODCL data types to Protobuf types.
+    ///
+    /// Note: For timestamp types, this returns basic proto types. If you need
+    /// google.protobuf.Timestamp or wrapper types, consider using the wrapper
+    /// type export option (future enhancement).
     fn map_data_type_to_protobuf(data_type: &str) -> String {
         let dt_lower = data_type.to_lowercase();
 
@@ -271,7 +275,9 @@ impl ProtobufExporter {
             "double" | "decimal" | "numeric" => "double".to_string(),
             "boolean" | "bool" => "bool".to_string(),
             "bytes" | "binary" | "varbinary" => "bytes".to_string(),
-            "date" | "time" | "timestamp" | "datetime" => "string".to_string(), // Use string for dates
+            // Temporal types - use int64 for timestamps (epoch millis) or string
+            "timestamp" | "datetime" => "int64".to_string(),
+            "date" | "time" => "string".to_string(),
             "uuid" => "string".to_string(),
             _ => {
                 // Default to string for VARCHAR, TEXT, CHAR, etc.

@@ -191,23 +191,22 @@ fn table_data_to_table(table_data: &TableData, uuid: Option<Uuid>) -> Table {
 
     let mut all_columns = Vec::new();
 
-    // Convert columns - do NOT parse ARRAY<STRUCT> or MAP types (store in nestedData instead)
+    // Convert columns - parse STRUCT and ARRAY<STRUCT> types into nested columns
+    // MAP types are kept as-is (keys are dynamic)
     for col_data in &table_data.columns {
         let data_type_upper = col_data.data_type.to_uppercase();
-        let is_array_struct =
-            data_type_upper.starts_with("ARRAY<") && data_type_upper.contains("STRUCT<");
         let is_map = data_type_upper.starts_with("MAP<");
 
-        // Skip parsing for ARRAY<STRUCT> or MAP - they go in nestedData
-        if is_array_struct || is_map {
+        // Skip parsing for MAP types - keys are dynamic
+        if is_map {
             all_columns.push(column_data_to_column(col_data));
             continue;
         }
 
-        // For regular STRUCT (not ARRAY<STRUCT>), try to parse and create nested columns
-        let is_struct = data_type_upper.contains("STRUCT<") || data_type_upper == "STRUCT";
+        // For STRUCT or ARRAY<STRUCT> types, try to parse and create nested columns
+        let is_struct = data_type_upper.contains("STRUCT<");
         if is_struct {
-            // Try to parse STRUCT and create nested columns
+            // Try to parse STRUCT/ARRAY<STRUCT> and create nested columns
             let struct_cols = parse_struct_columns(&col_data.name, &col_data.data_type, col_data);
             if !struct_cols.is_empty() {
                 all_columns.extend(struct_cols);
@@ -695,19 +694,51 @@ struct ParsedProtoField {
     optional: bool,
 }
 
-/// Extract all message definitions from proto content
-fn extract_proto_messages(file_name: &str, content: &str) -> Vec<ParsedProtoMessage> {
+/// Result of parsing proto files - contains both messages and enum names
+#[derive(Debug, Clone)]
+struct ParsedProtoContent {
+    messages: Vec<ParsedProtoMessage>,
+    enum_names: std::collections::HashSet<String>,
+}
+
+/// Extract all message and enum definitions from proto content (including nested)
+fn extract_proto_content(file_name: &str, content: &str) -> ParsedProtoContent {
     let mut messages = Vec::new();
+    let mut enum_names = std::collections::HashSet::new();
     let mut current_package = String::new();
-    let mut current_message: Option<(String, Vec<ParsedProtoField>)> = None;
+    // Stack of (message_name, fields, brace_depth_when_started)
+    let mut message_stack: Vec<(String, Vec<ParsedProtoField>, usize)> = Vec::new();
     let mut brace_depth = 0;
-    let mut in_message = false;
+    let mut in_block_comment = false;
+    let mut in_enum = false;
+    let mut enum_depth = 0;
+    let mut current_enum_name = String::new();
 
     for line in content.lines() {
         let trimmed = line.trim();
 
-        // Skip comments and empty lines
-        if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with("/*") {
+        // Handle multi-line block comments (/* ... */ or /** ... */)
+        if in_block_comment {
+            if trimmed.contains("*/") {
+                in_block_comment = false;
+            }
+            continue;
+        }
+
+        // Check for block comment start
+        if trimmed.starts_with("/*") || trimmed.starts_with("/**") {
+            if !trimmed.contains("*/") || trimmed.ends_with("/*") || trimmed.ends_with("/**") {
+                // Block comment starts but doesn't end on this line
+                in_block_comment = true;
+            }
+            continue;
+        }
+
+        // Skip single-line comments, empty lines, and comment continuation lines (starting with *)
+        if trimmed.is_empty()
+            || trimmed.starts_with("//")
+            || (trimmed.starts_with('*') && !trimmed.starts_with("*/"))
+        {
             continue;
         }
 
@@ -722,8 +753,59 @@ fn extract_proto_messages(file_name: &str, content: &str) -> Vec<ParsedProtoMess
             continue;
         }
 
-        // Check for message start
-        if trimmed.starts_with("message ") && !in_message {
+        // Track enum blocks - capture enum name and skip contents
+        if trimmed.starts_with("enum ") {
+            // Extract enum name
+            let enum_name = trimmed
+                .strip_prefix("enum ")
+                .and_then(|s| {
+                    let s = s.trim();
+                    if let Some(idx) = s.find('{') {
+                        Some(s[..idx].trim())
+                    } else {
+                        s.split_whitespace().next()
+                    }
+                })
+                .unwrap_or("")
+                .to_string();
+
+            if !enum_name.is_empty() {
+                // Build full enum name including parent message context
+                let full_enum_name = if message_stack.is_empty() {
+                    enum_name.clone()
+                } else {
+                    let parent_names: Vec<&str> =
+                        message_stack.iter().map(|(n, _, _)| n.as_str()).collect();
+                    format!("{}.{}", parent_names.join("."), enum_name)
+                };
+
+                // Add both simple and full names
+                enum_names.insert(enum_name.clone());
+                enum_names.insert(full_enum_name.clone());
+                if !current_package.is_empty() {
+                    enum_names.insert(format!("{}.{}", current_package, full_enum_name));
+                }
+                current_enum_name = enum_name;
+            }
+
+            in_enum = true;
+            enum_depth = brace_depth;
+            brace_depth += trimmed.matches('{').count();
+            continue;
+        }
+
+        if in_enum {
+            brace_depth += trimmed.matches('{').count();
+            brace_depth = brace_depth.saturating_sub(trimmed.matches('}').count());
+            if brace_depth <= enum_depth {
+                in_enum = false;
+                current_enum_name.clear();
+            }
+            continue;
+        }
+
+        // Check for message start (can be nested)
+        if trimmed.starts_with("message ") {
             let msg_name = trimmed
                 .strip_prefix("message ")
                 .and_then(|s| {
@@ -738,63 +820,128 @@ fn extract_proto_messages(file_name: &str, content: &str) -> Vec<ParsedProtoMess
                 .to_string();
 
             if !msg_name.is_empty() {
-                current_message = Some((msg_name, Vec::new()));
-                in_message = true;
-                brace_depth = 1;
-                if trimmed.matches('{').count() > trimmed.matches('}').count() {
-                    // Opening brace on same line
-                } else if !trimmed.contains('{') {
-                    brace_depth = 0; // Brace on next line
-                }
+                // Build full nested name from stack
+                let full_nested_name = if message_stack.is_empty() {
+                    msg_name.clone()
+                } else {
+                    let parent_names: Vec<&str> =
+                        message_stack.iter().map(|(n, _, _)| n.as_str()).collect();
+                    format!("{}.{}", parent_names.join("."), msg_name)
+                };
+
+                // Count braces on this line
+                let open_braces = trimmed.matches('{').count();
+                let close_braces = trimmed.matches('}').count();
+                brace_depth += open_braces;
+                brace_depth = brace_depth.saturating_sub(close_braces);
+
+                message_stack.push((full_nested_name, Vec::new(), brace_depth));
             }
             continue;
         }
 
-        // Track brace depth
-        if in_message {
-            brace_depth += trimmed.matches('{').count();
-            brace_depth = brace_depth.saturating_sub(trimmed.matches('}').count());
+        // Track brace depth and handle message end
+        let open_braces = trimmed.matches('{').count();
+        let close_braces = trimmed.matches('}').count();
 
-            // Parse fields (only at top level of message, brace_depth == 1)
-            if brace_depth == 1
-                && !trimmed.starts_with("message ")
-                && !trimmed.starts_with("enum ")
+        // Parse fields before updating brace depth
+        if !message_stack.is_empty() {
+            let current_msg_depth = message_stack.last().map(|(_, _, d)| *d).unwrap_or(0);
+
+            // Only parse fields at the current message's level (not in nested messages/enums)
+            if brace_depth == current_msg_depth
                 && !trimmed.starts_with("oneof ")
                 && !trimmed.starts_with("reserved ")
                 && !trimmed.starts_with("option ")
-                && let Some((_, ref mut fields)) = current_message
-                && let Some(field) = parse_proto_field_simple(trimmed)
+                && !trimmed.starts_with("}")
+                && !trimmed.starts_with("{")
             {
-                fields.push(field);
+                if let Some(field) = parse_proto_field_simple(trimmed) {
+                    if let Some((_, fields, _)) = message_stack.last_mut() {
+                        fields.push(field);
+                    }
+                }
             }
+        }
 
-            // End of message
-            if brace_depth == 0 {
-                if let Some((msg_name, fields)) = current_message.take() {
+        // Update brace depth
+        brace_depth += open_braces;
+        brace_depth = brace_depth.saturating_sub(close_braces);
+
+        // Check if any messages on the stack have ended
+        while let Some((_, _, msg_depth)) = message_stack.last() {
+            if brace_depth < *msg_depth {
+                // This message has ended
+                if let Some((msg_name, fields, _)) = message_stack.pop() {
                     let full_name = if current_package.is_empty() {
                         msg_name.clone()
                     } else {
                         format!("{}.{}", current_package, msg_name)
                     };
+                    // Use just the last part for the simple name
+                    let simple_name = msg_name.rsplit('.').next().unwrap_or(&msg_name).to_string();
                     messages.push(ParsedProtoMessage {
-                        name: msg_name,
+                        name: simple_name,
                         full_name,
                         fields,
                         source_file: file_name.to_string(),
                     });
                 }
-                in_message = false;
+            } else {
+                break;
             }
         }
     }
 
-    messages
+    // Handle any remaining messages on the stack (shouldn't happen with valid proto)
+    while let Some((msg_name, fields, _)) = message_stack.pop() {
+        let full_name = if current_package.is_empty() {
+            msg_name.clone()
+        } else {
+            format!("{}.{}", current_package, msg_name)
+        };
+        let simple_name = msg_name.rsplit('.').next().unwrap_or(&msg_name).to_string();
+        messages.push(ParsedProtoMessage {
+            name: simple_name,
+            full_name,
+            fields,
+            source_file: file_name.to_string(),
+        });
+    }
+
+    ParsedProtoContent {
+        messages,
+        enum_names,
+    }
+}
+
+/// Check if a string is a valid proto field name (identifier)
+fn is_valid_proto_identifier(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    let mut chars = name.chars();
+    // First character must be a letter or underscore
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
+        _ => return false,
+    }
+    // Remaining characters must be alphanumeric or underscore
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 /// Parse a simple proto field line
 fn parse_proto_field_simple(line: &str) -> Option<ParsedProtoField> {
-    let line = line.split("//").next().unwrap_or(line).trim();
+    // Strip inline comments and trailing block comments
+    let line = line.split("//").next().unwrap_or(line);
+    let line = line.split("/*").next().unwrap_or(line).trim();
+
     if line.is_empty() || line == "}" || line == "{" {
+        return None;
+    }
+
+    // Proto field lines must contain an equals sign for field number assignment
+    if !line.contains('=') {
         return None;
     }
 
@@ -833,7 +980,8 @@ fn parse_proto_field_simple(line: &str) -> Option<ParsedProtoField> {
         .trim()
         .to_string();
 
-    if field_name.is_empty() || field_name.starts_with('=') {
+    // Validate field name is a proper identifier
+    if !is_valid_proto_identifier(&field_name) {
         return None;
     }
 
@@ -845,8 +993,9 @@ fn parse_proto_field_simple(line: &str) -> Option<ParsedProtoField> {
     })
 }
 
-/// Check if a type is a scalar protobuf type
+/// Check if a type is a scalar protobuf type (including well-known wrapper types)
 fn is_scalar_proto_type(type_name: &str) -> bool {
+    // Basic scalar types
     matches!(
         type_name,
         "int32"
@@ -864,6 +1013,33 @@ fn is_scalar_proto_type(type_name: &str) -> bool {
             | "bool"
             | "string"
             | "bytes"
+    ) || is_well_known_wrapper_type(type_name)
+}
+
+/// Check if a type is a Google protobuf well-known wrapper type
+fn is_well_known_wrapper_type(type_name: &str) -> bool {
+    matches!(
+        type_name,
+        // Wrapper types for nullable scalars
+        "google.protobuf.StringValue"
+            | "google.protobuf.BytesValue"
+            | "google.protobuf.Int32Value"
+            | "google.protobuf.Int64Value"
+            | "google.protobuf.UInt32Value"
+            | "google.protobuf.UInt64Value"
+            | "google.protobuf.FloatValue"
+            | "google.protobuf.DoubleValue"
+            | "google.protobuf.BoolValue"
+            // Timestamp and duration
+            | "google.protobuf.Timestamp"
+            | "google.protobuf.Duration"
+            // Other well-known types
+            | "google.protobuf.Any"
+            | "google.protobuf.Struct"
+            | "google.protobuf.Value"
+            | "google.protobuf.ListValue"
+            | "google.protobuf.FieldMask"
+            | "google.protobuf.Empty"
     )
 }
 
@@ -977,9 +1153,10 @@ fn find_root_message(
     best_candidate.or_else(|| messages.first().map(|m| m.name.clone()))
 }
 
-/// Map proto type to SQL type
+/// Map proto type to SQL type (including well-known wrapper types)
 fn map_proto_to_sql_type(proto_type: &str) -> String {
     match proto_type {
+        // Basic scalar types
         "int32" | "sint32" | "sfixed32" => "INTEGER".to_string(),
         "int64" | "sint64" | "sfixed64" => "BIGINT".to_string(),
         "uint32" | "fixed32" => "INTEGER".to_string(),
@@ -989,14 +1166,51 @@ fn map_proto_to_sql_type(proto_type: &str) -> String {
         "bool" => "BOOLEAN".to_string(),
         "string" => "STRING".to_string(),
         "bytes" => "BYTES".to_string(),
-        _ => "STRING".to_string(), // Default for unknown/message types
+        // Google protobuf wrapper types (nullable scalars)
+        "google.protobuf.StringValue" => "STRING".to_string(),
+        "google.protobuf.BytesValue" => "BYTES".to_string(),
+        "google.protobuf.Int32Value" => "INTEGER".to_string(),
+        "google.protobuf.Int64Value" => "BIGINT".to_string(),
+        "google.protobuf.UInt32Value" => "INTEGER".to_string(),
+        "google.protobuf.UInt64Value" => "BIGINT".to_string(),
+        "google.protobuf.FloatValue" => "FLOAT".to_string(),
+        "google.protobuf.DoubleValue" => "DOUBLE".to_string(),
+        "google.protobuf.BoolValue" => "BOOLEAN".to_string(),
+        // Timestamp and duration
+        "google.protobuf.Timestamp" => "TIMESTAMP".to_string(),
+        "google.protobuf.Duration" => "STRING".to_string(), // Duration as string representation
+        // Other well-known types (map to JSON-compatible STRING)
+        "google.protobuf.Any" => "STRING".to_string(),
+        "google.protobuf.Struct" => "STRING".to_string(),
+        "google.protobuf.Value" => "STRING".to_string(),
+        "google.protobuf.ListValue" => "STRING".to_string(),
+        "google.protobuf.FieldMask" => "STRING".to_string(),
+        "google.protobuf.Empty" => "STRING".to_string(),
+        // Default for unknown/message types
+        _ => "STRING".to_string(),
     }
+}
+
+/// Check if a type is a known enum
+fn is_enum_type(type_name: &str, enum_names: &std::collections::HashSet<String>) -> bool {
+    // Check exact match
+    if enum_names.contains(type_name) {
+        return true;
+    }
+    // Check just the simple name (last part after dot)
+    if let Some(simple_name) = type_name.rsplit('.').next() {
+        if enum_names.contains(simple_name) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Flatten a message and all its dependencies into columns with dot notation
 fn flatten_message_to_columns(
     root_message: &ParsedProtoMessage,
     all_messages: &[ParsedProtoMessage],
+    enum_names: &std::collections::HashSet<String>,
     prefix: &str,
     visited: &mut std::collections::HashSet<String>,
     max_depth: usize,
@@ -1020,19 +1234,32 @@ fn flatten_message_to_columns(
             format!("{}.{}", prefix, field.name)
         };
 
-        if is_scalar_proto_type(&field.field_type) {
-            // Scalar type - add as column
-            let data_type = if field.repeated {
-                format!("ARRAY<{}>", map_proto_to_sql_type(&field.field_type))
+        // Check if this is a scalar type, well-known wrapper type, or enum
+        let is_scalar = is_scalar_proto_type(&field.field_type);
+        let is_enum = is_enum_type(&field.field_type, enum_names);
+
+        if is_scalar || is_enum {
+            // Scalar/enum type - add as column
+            let base_type = if is_enum {
+                "STRING".to_string() // Enums are represented as strings
             } else {
                 map_proto_to_sql_type(&field.field_type)
             };
+
+            let data_type = if field.repeated {
+                format!("ARRAY<{}>", base_type)
+            } else {
+                base_type
+            };
+
+            // Wrapper types (google.protobuf.*Value) are inherently nullable
+            let is_wrapper = is_well_known_wrapper_type(&field.field_type);
 
             columns.push(ColumnData {
                 name: column_name,
                 data_type,
                 physical_type: None,
-                nullable: field.optional || field.repeated,
+                nullable: field.optional || field.repeated || is_wrapper,
                 primary_key: false,
                 description: None,
                 quality: None,
@@ -1041,15 +1268,31 @@ fn flatten_message_to_columns(
             });
         } else {
             // Message type - find and flatten recursively
+            // Try multiple ways to find the message:
+            // 1. Exact match on simple name
+            // 2. Exact match on full name
+            // 3. Match where full_name ends with the field type
             let type_name = field
                 .field_type
                 .rsplit('.')
                 .next()
                 .unwrap_or(&field.field_type);
-            if let Some(nested_msg) = all_messages.iter().find(|m| m.name == type_name) {
+
+            let nested_msg = all_messages
+                .iter()
+                .find(|m| m.name == type_name)
+                .or_else(|| all_messages.iter().find(|m| m.full_name == field.field_type))
+                .or_else(|| {
+                    all_messages
+                        .iter()
+                        .find(|m| m.full_name.ends_with(&format!(".{}", type_name)))
+                });
+
+            if let Some(msg) = nested_msg {
                 let nested_columns = flatten_message_to_columns(
-                    nested_msg,
+                    msg,
                     all_messages,
+                    enum_names,
                     &column_name,
                     visited,
                     max_depth - 1,
@@ -1117,11 +1360,13 @@ fn handle_import_protobuf_from_jar(args: &ImportArgs, jar_path: &PathBuf) -> Res
         ));
     }
 
-    // Parse all proto files and extract messages
+    // Parse all proto files and extract messages and enums
     let mut all_messages: Vec<ParsedProtoMessage> = Vec::new();
+    let mut all_enum_names: std::collections::HashSet<String> = std::collections::HashSet::new();
     for (file_name, content) in &proto_contents {
-        let messages = extract_proto_messages(file_name, content);
-        all_messages.extend(messages);
+        let parsed = extract_proto_content(file_name, content);
+        all_messages.extend(parsed.messages);
+        all_enum_names.extend(parsed.enum_names);
     }
 
     if all_messages.is_empty() {
@@ -1204,7 +1449,14 @@ fn handle_import_protobuf_from_jar(args: &ImportArgs, jar_path: &PathBuf) -> Res
 
     // Flatten root message and all dependencies into columns
     let mut visited = HashSet::new();
-    let columns = flatten_message_to_columns(root_message, &all_messages, "", &mut visited, 10);
+    let columns = flatten_message_to_columns(
+        root_message,
+        &all_messages,
+        &all_enum_names,
+        "",
+        &mut visited,
+        10,
+    );
 
     // Create a single table from flattened columns
     let table_data = TableData {

@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2025-01-06
+
+### Added
+
+- **feat(import)**: Added support for Google protobuf well-known wrapper types in JAR imports
+  - `google.protobuf.StringValue` → `STRING`
+  - `google.protobuf.Int32Value` → `INTEGER`
+  - `google.protobuf.Int64Value` → `BIGINT`
+  - `google.protobuf.DoubleValue` → `DOUBLE`
+  - `google.protobuf.FloatValue` → `FLOAT`
+  - `google.protobuf.BoolValue` → `BOOLEAN`
+  - `google.protobuf.Timestamp` → `TIMESTAMP`
+  - Wrapper types are correctly marked as nullable
+
+- **feat(import)**: Added nested message extraction for protobuf JAR imports
+  - Now extracts nested messages (e.g., `Bet.Cashout`, `Leg.EachWay`)
+  - Supports deeply nested message hierarchies
+  - Enums are now recognized and mapped to `STRING` type
+
+- **feat(import)**: Consistent STRUCT flattening across all import types
+  - All WASM import functions now return consistent flattened format
+  - `STRUCT<...>` types flatten to `parent.field` notation
+  - `ARRAY<STRUCT<...>>` types flatten to `parent.[].field` notation
+  - Applied to: SQL, ODCS, ODCL, Avro, JSON Schema, Protobuf imports
+
+### Fixed
+
+- **fix(import)**: Fixed protobuf JAR parser incorrectly parsing multi-line comments as fields
+  - Added proper tracking for `/* ... */` and `/** ... */` block comments
+  - Added validation that field names must be valid identifiers
+  - Added check that proto field lines must contain `=` for field number
+
+- **fix(import)**: Fixed WASM SQL import not flattening STRUCT columns
+  - WASM `import_from_sql` now returns nested columns with dot notation
+  - Matches CLI behavior for consistent UI rendering
+
 ## [1.8.6] - 2025-01-06
 
 ### Fixed

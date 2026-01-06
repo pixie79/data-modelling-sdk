@@ -468,9 +468,10 @@ impl ProtobufImporter {
         Ok(table)
     }
 
-    /// Map Protobuf scalar type to SQL/ODCL data type.
+    /// Map Protobuf scalar type to SQL/ODCL data type (including well-known wrapper types).
     fn map_proto_type_to_sql(&self, proto_type: &str) -> String {
         match proto_type {
+            // Basic scalar types
             "int32" | "int" => "INTEGER".to_string(),
             "int64" | "long" => "BIGINT".to_string(),
             "uint32" => "INTEGER".to_string(), // Unsigned, but SQL doesn't distinguish
@@ -486,7 +487,28 @@ impl ProtobufImporter {
             "bool" | "boolean" => "BOOLEAN".to_string(),
             "bytes" => "BYTES".to_string(),
             "string" => "STRING".to_string(),
-            _ => "STRING".to_string(), // Default fallback
+            // Google protobuf wrapper types (nullable scalars)
+            "google.protobuf.StringValue" => "STRING".to_string(),
+            "google.protobuf.BytesValue" => "BYTES".to_string(),
+            "google.protobuf.Int32Value" => "INTEGER".to_string(),
+            "google.protobuf.Int64Value" => "BIGINT".to_string(),
+            "google.protobuf.UInt32Value" => "INTEGER".to_string(),
+            "google.protobuf.UInt64Value" => "BIGINT".to_string(),
+            "google.protobuf.FloatValue" => "FLOAT".to_string(),
+            "google.protobuf.DoubleValue" => "DOUBLE".to_string(),
+            "google.protobuf.BoolValue" => "BOOLEAN".to_string(),
+            // Timestamp and duration
+            "google.protobuf.Timestamp" => "TIMESTAMP".to_string(),
+            "google.protobuf.Duration" => "STRING".to_string(),
+            // Other well-known types (map to JSON-compatible STRING)
+            "google.protobuf.Any" => "STRING".to_string(),
+            "google.protobuf.Struct" => "STRING".to_string(),
+            "google.protobuf.Value" => "STRING".to_string(),
+            "google.protobuf.ListValue" => "STRING".to_string(),
+            "google.protobuf.FieldMask" => "STRING".to_string(),
+            "google.protobuf.Empty" => "STRING".to_string(),
+            // Default fallback
+            _ => "STRING".to_string(),
         }
     }
 }
