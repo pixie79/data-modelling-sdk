@@ -328,6 +328,7 @@ pub fn handle_export_odps(_args: &ExportArgs) -> Result<(), CliError> {
         }
 
         // Import ODPS file
+        use crate::export::ODPSExporter;
         use crate::import::ODPSImporter;
 
         let importer = ODPSImporter::new();
