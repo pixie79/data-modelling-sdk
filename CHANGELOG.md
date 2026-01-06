@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.4] - 2025-01-06
+
+### Fixed
+
+- Fixed workflow_call version detection using environment variables
+- Fixed dev suffix only applying to release/* branches, not main
+
 ## [1.8.3] - 2025-01-06
 
 ### Changed
