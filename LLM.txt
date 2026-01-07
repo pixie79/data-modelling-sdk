@@ -7,7 +7,7 @@ The Data Modelling SDK is a Rust library that provides unified interfaces for da
 **Repository**: https://github.com/pixie79/data-modelling-sdk
 **License**: MIT
 **Rust Edition**: 2024
-**Version**: 1.12.0
+**Version**: 1.13.0
 
 ## Architecture
 
@@ -20,6 +20,8 @@ The SDK is designed with a modular architecture centered around:
 5. **Validation**: Table and relationship validation logic
 6. **Model Management**: Loading and saving models from storage backends
 7. **Sync Engine**: Bidirectional YAML ↔ Database synchronization
+8. **Decision Records (DDL)**: Architecture Decision Records with MADR format support
+9. **Knowledge Base (KB)**: Domain documentation and knowledge articles
 
 ## Directory Structure
 
@@ -34,8 +36,10 @@ data-modelling-sdk/
 │   │   ├── avro.rs            # AVRO format exporter
 │   │   ├── bpmn.rs            # BPMN 2.0 exporter (feature-gated)
 │   │   ├── cads.rs            # CADS format exporter
+│   │   ├── decision.rs        # Decision Markdown exporter
 │   │   ├── dmn.rs             # DMN 1.3 exporter (feature-gated)
 │   │   ├── json_schema.rs     # JSON Schema exporter
+│   │   ├── knowledge.rs       # Knowledge article Markdown exporter
 │   │   ├── odcl.rs            # ODCL format exporter
 │   │   ├── odcs.rs            # ODCS v3.1.0 format exporter
 │   │   ├── odps.rs            # ODPS format exporter
@@ -56,8 +60,10 @@ data-modelling-sdk/
 │   │   ├── avro.rs            # AVRO format importer
 │   │   ├── bpmn.rs            # BPMN 2.0 importer (feature-gated)
 │   │   ├── cads.rs            # CADS format importer
+│   │   ├── decision.rs        # Decision YAML importer
 │   │   ├── dmn.rs             # DMN 1.3 importer (feature-gated)
 │   │   ├── json_schema.rs     # JSON Schema importer
+│   │   ├── knowledge.rs       # Knowledge article YAML importer
 │   │   ├── odcs.rs            # ODCS v3.1.0 format importer (primary, also handles ODCL)
 │   │   ├── odps.rs            # ODPS format importer
 │   │   ├── openapi.rs         # OpenAPI 3.1.1 importer (feature-gated)
@@ -75,9 +81,11 @@ data-modelling-sdk/
 │   │   ├── column.rs          # Column and ForeignKey models
 │   │   ├── cross_domain.rs    # Cross-domain relationship models
 │   │   ├── data_model.rs      # DataModel container (includes domain operations)
+│   │   ├── decision.rs        # Decision model structs (Decision, DecisionStatus, DecisionCategory, DecisionOption)
 │   │   ├── dmn.rs             # DMN model structs (DMNModel, DMNModelFormat) (feature-gated)
 │   │   ├── domain.rs          # Business Domain schema models (Domain, System, CADSNode, ODCSNode, etc.)
 │   │   ├── enums.rs           # Enums (DatabaseType, MedallionLayer, InfrastructureType, etc.)
+│   │   ├── knowledge.rs       # Knowledge model structs (KnowledgeArticle, ArticleType, ArticleStatus)
 │   │   ├── odps.rs            # ODPS model structs (ODPSDataProduct, ODPSInputPort, etc.)
 │   │   ├── openapi.rs         # OpenAPI model structs (OpenAPIModel, OpenAPIFormat) (feature-gated)
 │   │   ├── relationship.rs    # Relationship model
@@ -107,6 +115,8 @@ data-modelling-sdk/
 ├── src/cli/commands/           # CLI command implementations
 │   ├── mod.rs                 # Command module exports
 │   ├── db.rs                  # Database commands (init, sync, status, export)
+│   ├── decision.rs            # Decision commands (new, list, show, status, export)
+│   ├── knowledge.rs           # Knowledge commands (new, list, show, search, status, export)
 │   └── query.rs               # SQL query command
 ├── tests/                      # Test suite
 │   ├── auth_tests.rs
@@ -184,6 +194,15 @@ Core data structures:
 - **`ODPSDataProduct`**: ODPS data product model with input/output ports, support, team, and custom properties
 - **`BPMNModel`**: BPMN 2.0 process model stored in native XML format (requires `bpmn` feature)
 - **`DMNModel`**: DMN 1.3 decision model stored in native XML format (requires `dmn` feature)
+- **`Decision`**: Architecture Decision Record following MADR format with full lifecycle support
+- **`DecisionStatus`**: Decision lifecycle states (Draft, Proposed, Accepted, Deprecated, Superseded, Rejected)
+- **`DecisionCategory`**: Decision categories (Architecture, Technology, Process, Security, Data, Integration)
+- **`DecisionOption`**: Decision option with title, description, pros/cons
+- **`DecisionIndex`**: Index tracking decision metadata and numbering
+- **`KnowledgeArticle`**: Knowledge base article with structured content and metadata
+- **`ArticleType`**: Article types (Guide, Reference, Concept, Tutorial, Troubleshooting, Runbook)
+- **`ArticleStatus`**: Article lifecycle states (Draft, Review, Published, Archived, Deprecated)
+- **`KnowledgeIndex`**: Index tracking article metadata and numbering
 - **`OpenAPIModel`**: OpenAPI 3.1.1 specification stored in native YAML or JSON format (requires `openapi` feature)
 - **`CADSBPMNModel`**: CADS reference to BPMN model (name, reference, format, description)
 - **`CADSDMNModel`**: CADS reference to DMN model (name, reference, format, description)
@@ -205,6 +224,8 @@ Importers convert various formats to SDK models:
 - **`BPMNImporter`**: Importer for BPMN 2.0 XML format - for business process models (requires `bpmn` feature)
 - **`DMNImporter`**: Importer for DMN 1.3 XML format - for decision models (requires `dmn` feature)
 - **`OpenAPIImporter`**: Importer for OpenAPI 3.1.1 YAML/JSON format - for API specifications (requires `openapi` feature)
+- **`DecisionImporter`**: Importer for Decision YAML files - for architecture decision records
+- **`KnowledgeImporter`**: Importer for Knowledge article YAML files - for domain documentation
 - **`SQLImporter`**: SQL DDL parser (CREATE TABLE, CREATE VIEW, CREATE MATERIALIZED VIEW statements)
   - Supported SQL dialects: PostgreSQL, MySQL, SQLite, Generic (default), and Databricks
   - Databricks dialect supports: `IDENTIFIER()` function calls, variable references (`:variable_name`) in types/columns/metadata, `STRUCT`/`ARRAY` complex types, and views/materialized views
@@ -223,6 +244,8 @@ Exporters convert SDK models to various formats:
 - **`BPMNExporter`**: Exports BPMN models in native XML format (requires `bpmn` feature)
 - **`DMNExporter`**: Exports DMN models in native XML format (requires `dmn` feature)
 - **`OpenAPIExporter`**: Exports OpenAPI specs with YAML ↔ JSON conversion support (requires `openapi` feature)
+- **`DecisionExporter`**: Exports decisions to MADR-compliant Markdown format
+- **`KnowledgeExporter`**: Exports knowledge articles to Markdown format
 - **`SQLExporter`**: Generates SQL DDL (CREATE TABLE statements)
   - Supports multiple SQL dialects: PostgreSQL, MySQL, SQLite, Generic, and Databricks
 - **`JSONSchemaExporter`**: Exports to JSON Schema format
@@ -249,6 +272,12 @@ Exporters convert SDK models to various formats:
   - `load_openapi_models()`: Loads OpenAPI specs from a domain directory (requires `openapi` feature)
   - `load_openapi_model()`: Loads a specific OpenAPI spec by name (requires `openapi` feature)
   - `load_openapi_content()`: Loads OpenAPI content (requires `openapi` feature)
+  - `load_decisions()`: Loads all decisions from decisions/ directory
+  - `load_decision_index()`: Loads decision index metadata
+  - `load_decisions_by_domain()`: Loads decisions filtered by domain
+  - `load_knowledge()`: Loads all knowledge articles from knowledge/ directory
+  - `load_knowledge_index()`: Loads knowledge index metadata
+  - `load_knowledge_by_domain()`: Loads knowledge articles filtered by domain
 - **`ModelSaver`**: Saves models to storage backends. Supports domain-based file structure:
   - `save_table()`: Legacy method for saving to `tables/` directory
   - `save_domain()`: Saves domain with all associated ODCS/ODPS/CADS files to domain directory
@@ -257,6 +286,14 @@ Exporters convert SDK models to various formats:
   - `save_bpmn_model()`: Saves BPMN model to domain directory (requires `bpmn` feature)
   - `save_dmn_model()`: Saves DMN model to domain directory (requires `dmn` feature)
   - `save_openapi_model()`: Saves OpenAPI spec to domain directory (requires `openapi` feature)
+  - `save_decision()`: Saves a decision to decisions/ directory
+  - `save_decision_index()`: Saves decision index metadata
+  - `save_knowledge()`: Saves a knowledge article to knowledge/ directory
+  - `save_knowledge_index()`: Saves knowledge index metadata
+  - `export_decision_markdown()`: Exports a decision to Markdown in decisions-md/
+  - `export_knowledge_markdown()`: Exports a knowledge article to Markdown in knowledge-md/
+  - `export_all_decisions_markdown()`: Exports all decisions to Markdown
+  - `export_all_knowledge_markdown()`: Exports all knowledge articles to Markdown
 - **`ApiModelLoader`**: Loads models via HTTP API
 - **`DomainLoadResult`**: Result structure containing loaded domains, tables, ODPS products, and CADS assets
 
@@ -516,7 +553,21 @@ base_directory/
 ├── {workspace}_{domain}_{system}_{resource}.cads.yaml   # CADS asset files
 ├── {workspace}_{domain}_{system}_{resource}.bpmn.xml    # BPMN process models
 ├── {workspace}_{domain}_{system}_{resource}.dmn.xml     # DMN decision models
-└── {workspace}_{domain}_{system}_{resource}.openapi.yaml # OpenAPI specifications
+├── {workspace}_{domain}_{system}_{resource}.openapi.yaml # OpenAPI specifications
+├── decisions/                  # Architecture Decision Records
+│   ├── index.yaml             # Decision index with metadata
+│   ├── 0001-decision-title.yaml # Individual decision files
+│   └── ...
+├── decisions-md/               # Markdown exports (auto-generated)
+│   ├── 0001-decision-title.md
+│   └── ...
+├── knowledge/                  # Knowledge Base articles
+│   ├── index.yaml             # Knowledge index with metadata
+│   ├── 0001-article-title.yaml # Individual article files
+│   └── ...
+└── knowledge-md/               # Markdown exports (auto-generated)
+    ├── 0001-article-title.md
+    └── ...
 ```
 
 ### Flat File Naming Convention

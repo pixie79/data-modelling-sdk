@@ -112,6 +112,59 @@ Workspace schema defines top-level containers that organize domains, systems, as
 - Relationship definitions between assets
 - Flat file naming convention: `{workspace}_{domain}_{system}_{resource}.{type}.yaml`
 
+### MADR Decision Records
+
+**File**: `decision-schema.json`
+**Version**: 1.0
+**Source**: Internal specification (MADR-compliant)
+**Purpose**: Architecture Decision Records following MADR template
+**Status**: ✅ Fully Supported
+
+Decision schema defines MADR-compliant Architecture Decision Records. Key features:
+- Decision metadata (id, number, title, status, category, domain)
+- Decision context and drivers with priorities
+- Options considered with pros/cons analysis
+- Selected decision and consequences
+- Asset linking to ODCS, ODPS, CADS resources
+- Supersession chain tracking
+- Compliance assessment (regulatory, privacy, security)
+- Index file (`decisions.yaml`) for decision catalog
+
+### Knowledge Base Articles
+
+**File**: `knowledge-schema.json`
+**Version**: 1.0
+**Source**: Internal specification
+**Purpose**: Domain-partitioned knowledge articles and documentation
+**Status**: ✅ Fully Supported
+
+Knowledge schema defines knowledge base articles. Key features:
+- Article metadata (id, number, title, type, status, domain)
+- Article types: guide, standard, reference, glossary, howto, troubleshooting, policy, template
+- Summary and full Markdown content
+- Authorship and review tracking
+- Audience and skill level classification
+- Asset linking to ODCS, ODPS, CADS resources
+- Decision linking for context
+- Related article references
+- Index file (`knowledge.yaml`) for article catalog
+
+### Decision Index
+
+**File**: `decisions-index-schema.json`
+**Version**: 1.0
+**Source**: Internal specification
+**Purpose**: Index file for tracking all decisions in a workspace
+**Status**: ✅ Fully Supported
+
+### Knowledge Index
+
+**File**: `knowledge-index-schema.json`
+**Version**: 1.0
+**Source**: Internal specification
+**Purpose**: Index file for tracking all knowledge articles in a workspace
+**Status**: ✅ Fully Supported
+
 ## Other Formats
 
 The SDK also supports importing/exporting from these formats, but they use external standards rather than our own schemas:
@@ -175,7 +228,11 @@ schemas/
 ├── bpmn-2.0.xsd                   # BPMN 2.0 XSD schema
 ├── dmn-1.3.xsd                    # DMN 1.3 XSD schema
 ├── openapi-3.1.1.json             # OpenAPI 3.1.1 JSON Schema
-└── workspace-schema.json          # Workspace configuration schema (includes domains, assets, relationships)
+├── workspace-schema.json          # Workspace configuration schema (includes domains, assets, relationships)
+├── decision-schema.json           # MADR Decision Record schema
+├── knowledge-schema.json          # Knowledge Base Article schema
+├── decisions-index-schema.json    # Decision index (decisions.yaml) schema
+└── knowledge-index-schema.json    # Knowledge index (knowledge.yaml) schema
 ```
 
 ## Related Documentation

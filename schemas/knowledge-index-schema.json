@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/pixie79/data-modelling-sdk/schemas/knowledge-index-schema.json",
+  "title": "Knowledge Index",
+  "description": "Schema for the knowledge.yaml index file",
+  "type": "object",
+  "required": ["schema_version", "articles", "next_number"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Schema version (e.g., '1.0')"
+    },
+    "last_updated": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Last update timestamp"
+    },
+    "articles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["number", "id", "title", "article_type", "status", "file"],
+        "properties": {
+          "number": {
+            "type": "string",
+            "pattern": "^KB-[0-9]{4}$",
+            "description": "Article number (KB-0001, etc.)"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Article UUID"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Article title"
+          },
+          "article_type": {
+            "type": "string",
+            "enum": ["guide", "standard", "reference", "glossary", "howto", "troubleshooting", "policy", "template"],
+            "description": "Type of knowledge article"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["draft", "published", "archived", "deprecated"],
+            "description": "Publication status"
+          },
+          "domain": {
+            "type": ["string", "null"],
+            "description": "Domain the article belongs to"
+          },
+          "file": {
+            "type": "string",
+            "pattern": ".*\\.kb\\.yaml$",
+            "description": "Filename of the article YAML file"
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "List of article entries"
+    },
+    "next_number": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Next available article number"
+    }
+  },
+  "additionalProperties": false
+}

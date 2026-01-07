@@ -37,6 +37,8 @@ cargo run --bin test-odps --features odps-validation,cli -- product.odps.yaml --
 - **Database Backends**: DuckDB (embedded) and PostgreSQL for high-performance queries
 - **Model Loading/Saving**: Load and save models from various storage backends
 - **Import/Export**: Import from SQL (PostgreSQL, MySQL, SQLite, Generic, Databricks), ODCS, ODCL, JSON Schema, AVRO, Protobuf (proto2/proto3), CADS, ODPS, BPMN, DMN, OpenAPI; Export to various formats
+- **Decision Records (DDL)**: MADR-compliant Architecture Decision Records with full lifecycle management
+- **Knowledge Base (KB)**: Domain-partitioned knowledge articles with Markdown content support
 - **Business Domain Schema**: Organize systems, CADS nodes, and ODCS nodes within business domains
 - **Universal Converter**: Convert any format to ODCS v3.1.0 format
 - **OpenAPI to ODCS Converter**: Convert OpenAPI schema components to ODCS table definitions
@@ -44,6 +46,119 @@ cargo run --bin test-odps --features odps-validation,cli -- product.odps.yaml --
 - **Schema Reference**: JSON Schema definitions for all supported formats in `schemas/` directory
 - **Database Sync**: Bidirectional sync between YAML files and database with change detection
 - **Git Hooks**: Automatic pre-commit and post-checkout hooks for database synchronization
+
+## Decision Records (DDL)
+
+The SDK includes full support for **Architecture Decision Records** following the MADR (Markdown Any Decision Records) format. Decisions are stored as YAML files and can be exported to Markdown for documentation.
+
+### Decision File Structure
+
+```
+workspace/
+├── decisions/
+│   ├── index.yaml                              # Decision index with metadata
+│   ├── 0001-use-postgresql-database.yaml       # Individual decision records
+│   ├── 0002-adopt-microservices.yaml
+│   └── ...
+└── decisions-md/                               # Markdown exports (auto-generated)
+    ├── 0001-use-postgresql-database.md
+    └── 0002-adopt-microservices.md
+```
+
+### Decision Lifecycle
+
+Decisions follow a defined lifecycle with these statuses:
+- **Draft**: Initial proposal, open for discussion
+- **Proposed**: Formal proposal awaiting decision
+- **Accepted**: Approved and in effect
+- **Deprecated**: No longer recommended but still valid
+- **Superseded**: Replaced by a newer decision
+- **Rejected**: Not approved
+
+### Decision Categories
+
+- **Architecture**: System design and structure decisions
+- **Technology**: Technology stack and tool choices
+- **Process**: Development workflow decisions
+- **Security**: Security-related decisions
+- **Data**: Data modeling and storage decisions
+- **Integration**: External system integration decisions
+
+### CLI Commands
+
+```bash
+# Create a new decision
+data-modelling-cli decision new --title "Use PostgreSQL" --domain platform
+
+# List all decisions
+data-modelling-cli decision list --workspace ./my-workspace
+
+# Show a specific decision
+data-modelling-cli decision show 1 --workspace ./my-workspace
+
+# Filter by status or category
+data-modelling-cli decision list --status accepted --category architecture
+
+# Export decisions to Markdown
+data-modelling-cli decision export --workspace ./my-workspace
+```
+
+## Knowledge Base (KB)
+
+The SDK provides a **Knowledge Base** system for storing domain knowledge, guides, and documentation as structured articles.
+
+### Knowledge Base File Structure
+
+```
+workspace/
+├── knowledge/
+│   ├── index.yaml                              # Knowledge index with metadata
+│   ├── 0001-api-authentication-guide.yaml      # Individual knowledge articles
+│   ├── 0002-deployment-procedures.yaml
+│   └── ...
+└── knowledge-md/                               # Markdown exports (auto-generated)
+    ├── 0001-api-authentication-guide.md
+    └── 0002-deployment-procedures.md
+```
+
+### Article Types
+
+- **Guide**: Step-by-step instructions and tutorials
+- **Reference**: API documentation and technical references
+- **Concept**: Explanations of concepts and principles
+- **Tutorial**: Learning-focused content with examples
+- **Troubleshooting**: Problem-solving guides
+- **Runbook**: Operational procedures
+
+### Article Status
+
+- **Draft**: Work in progress
+- **Review**: Ready for peer review
+- **Published**: Approved and available
+- **Archived**: No longer actively maintained
+- **Deprecated**: Outdated, pending replacement
+
+### CLI Commands
+
+```bash
+# Create a new knowledge article
+data-modelling-cli knowledge new --title "API Authentication Guide" --domain platform --type guide
+
+# List all articles
+data-modelling-cli knowledge list --workspace ./my-workspace
+
+# Show a specific article
+data-modelling-cli knowledge show 1 --workspace ./my-workspace
+
+# Filter by type, status, or domain
+data-modelling-cli knowledge list --type guide --status published
+
+# Search article content
+data-modelling-cli knowledge search "authentication" --workspace ./my-workspace
+
+# Export articles to Markdown
+data-modelling-cli knowledge export --workspace ./my-workspace
+```
 
 ## File Structure
 
@@ -337,3 +452,5 @@ The SDK provides comprehensive support for multiple data modeling formats:
 - ✅ Schema reference directory (`schemas/`) with JSON Schema definitions for all supported formats
 - ✅ Bidirectional YAML ↔ Database sync with change detection
 - ✅ Git hooks for automatic synchronization
+- ✅ Decision Records (DDL) with MADR format support
+- ✅ Knowledge Base (KB) with domain partitioning

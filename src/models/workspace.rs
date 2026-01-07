@@ -60,6 +60,14 @@ pub enum AssetType {
     Dmn,
     /// OpenAPI specification
     Openapi,
+    /// MADR decision record
+    Decision,
+    /// Knowledge base article
+    Knowledge,
+    /// Decision log index file
+    DecisionIndex,
+    /// Knowledge base index file
+    KnowledgeIndex,
 }
 
 impl AssetType {
@@ -74,6 +82,10 @@ impl AssetType {
             AssetType::Bpmn => "bpmn.xml",
             AssetType::Dmn => "dmn.xml",
             AssetType::Openapi => "openapi.yaml",
+            AssetType::Decision => "madr.yaml",
+            AssetType::Knowledge => "kb.yaml",
+            AssetType::DecisionIndex => "yaml",
+            AssetType::KnowledgeIndex => "yaml",
         }
     }
 
@@ -82,13 +94,21 @@ impl AssetType {
         match self {
             AssetType::Workspace => Some("workspace.yaml"),
             AssetType::Relationships => Some("relationships.yaml"),
+            AssetType::DecisionIndex => Some("decisions.yaml"),
+            AssetType::KnowledgeIndex => Some("knowledge.yaml"),
             _ => None,
         }
     }
 
     /// Check if this is a workspace-level file (not a domain/system asset)
     pub fn is_workspace_level(&self) -> bool {
-        matches!(self, AssetType::Workspace | AssetType::Relationships)
+        matches!(
+            self,
+            AssetType::Workspace
+                | AssetType::Relationships
+                | AssetType::DecisionIndex
+                | AssetType::KnowledgeIndex
+        )
     }
 
     /// Detect asset type from filename
@@ -97,12 +117,20 @@ impl AssetType {
             Some(AssetType::Workspace)
         } else if filename == "relationships.yaml" {
             Some(AssetType::Relationships)
+        } else if filename == "decisions.yaml" {
+            Some(AssetType::DecisionIndex)
+        } else if filename == "knowledge.yaml" {
+            Some(AssetType::KnowledgeIndex)
         } else if filename.ends_with(".odcs.yaml") {
             Some(AssetType::Odcs)
         } else if filename.ends_with(".odps.yaml") {
             Some(AssetType::Odps)
         } else if filename.ends_with(".cads.yaml") {
             Some(AssetType::Cads)
+        } else if filename.ends_with(".madr.yaml") {
+            Some(AssetType::Decision)
+        } else if filename.ends_with(".kb.yaml") {
+            Some(AssetType::Knowledge)
         } else if filename.ends_with(".bpmn.xml") {
             Some(AssetType::Bpmn)
         } else if filename.ends_with(".dmn.xml") {
@@ -119,9 +147,13 @@ impl AssetType {
         &[
             "workspace.yaml",
             "relationships.yaml",
+            "decisions.yaml",
+            "knowledge.yaml",
             ".odcs.yaml",
             ".odps.yaml",
             ".cads.yaml",
+            ".madr.yaml",
+            ".kb.yaml",
             ".bpmn.xml",
             ".dmn.xml",
             ".openapi.yaml",

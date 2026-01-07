@@ -304,6 +304,246 @@ Install Protocol Buffers compiler:
 
 ---
 
+## Decision Commands
+
+The CLI includes commands for managing Architecture Decision Records (ADRs) following the MADR format. Decisions are stored as YAML files in the `decisions/` folder and can be exported to Markdown.
+
+### Create a New Decision
+
+```bash
+# Create a new decision interactively
+data-modelling-cli decision new --workspace ./my-workspace
+
+# Create with title and domain
+data-modelling-cli decision new --title "Use PostgreSQL for persistence" \
+  --domain platform --workspace ./my-workspace
+
+# Create with full details
+data-modelling-cli decision new \
+  --title "Adopt microservices architecture" \
+  --domain architecture \
+  --category architecture \
+  --status proposed \
+  --workspace ./my-workspace
+```
+
+### List Decisions
+
+```bash
+# List all decisions
+data-modelling-cli decision list --workspace ./my-workspace
+
+# Filter by status
+data-modelling-cli decision list --status accepted --workspace ./my-workspace
+
+# Filter by category
+data-modelling-cli decision list --category architecture --workspace ./my-workspace
+
+# Filter by domain
+data-modelling-cli decision list --domain platform --workspace ./my-workspace
+
+# Combine filters
+data-modelling-cli decision list --status accepted --category technology \
+  --workspace ./my-workspace
+```
+
+### Show Decision Details
+
+```bash
+# Show by number
+data-modelling-cli decision show 1 --workspace ./my-workspace
+
+# Show by number with leading zeros
+data-modelling-cli decision show 0001 --workspace ./my-workspace
+```
+
+### Check Decision Status
+
+```bash
+# Show summary of all decisions by status
+data-modelling-cli decision status --workspace ./my-workspace
+```
+
+### Export Decisions to Markdown
+
+```bash
+# Export all decisions to decisions-md/ folder
+data-modelling-cli decision export --workspace ./my-workspace
+
+# Export specific decision
+data-modelling-cli decision export 1 --workspace ./my-workspace
+```
+
+### Decision Command Reference
+
+```
+data-modelling-cli decision <subcommand> [options]
+
+Subcommands:
+  new       Create a new decision record
+  list      List all decisions
+  show      Show a specific decision
+  status    Show decision status summary
+  export    Export decisions to Markdown
+
+decision new Options:
+  --workspace <path>      Workspace directory (required)
+  --title <title>         Decision title
+  --domain <domain>       Business domain
+  --category <category>   Category: architecture, technology, process, security, data, integration
+  --status <status>       Status: draft, proposed, accepted, deprecated, superseded, rejected
+
+decision list Options:
+  --workspace <path>      Workspace directory (required)
+  --status <status>       Filter by status
+  --category <category>   Filter by category
+  --domain <domain>       Filter by domain
+
+decision show Arguments:
+  <number>                Decision number (e.g., 1 or 0001)
+Options:
+  --workspace <path>      Workspace directory (required)
+
+decision status Options:
+  --workspace <path>      Workspace directory (required)
+
+decision export Arguments:
+  [number]                Optional decision number (exports all if omitted)
+Options:
+  --workspace <path>      Workspace directory (required)
+```
+
+---
+
+## Knowledge Base Commands
+
+The CLI includes commands for managing Knowledge Base articles. Articles are stored as YAML files in the `knowledge/` folder and can be exported to Markdown.
+
+### Create a New Article
+
+```bash
+# Create a new knowledge article
+data-modelling-cli knowledge new --workspace ./my-workspace
+
+# Create with title and type
+data-modelling-cli knowledge new --title "API Authentication Guide" \
+  --type guide --workspace ./my-workspace
+
+# Create with full details
+data-modelling-cli knowledge new \
+  --title "Deployment Procedures" \
+  --domain platform \
+  --type runbook \
+  --status draft \
+  --workspace ./my-workspace
+```
+
+### List Articles
+
+```bash
+# List all articles
+data-modelling-cli knowledge list --workspace ./my-workspace
+
+# Filter by type
+data-modelling-cli knowledge list --type guide --workspace ./my-workspace
+
+# Filter by status
+data-modelling-cli knowledge list --status published --workspace ./my-workspace
+
+# Filter by domain
+data-modelling-cli knowledge list --domain platform --workspace ./my-workspace
+
+# Combine filters
+data-modelling-cli knowledge list --type guide --status published \
+  --workspace ./my-workspace
+```
+
+### Show Article Details
+
+```bash
+# Show by number
+data-modelling-cli knowledge show 1 --workspace ./my-workspace
+
+# Show by number with leading zeros
+data-modelling-cli knowledge show 0001 --workspace ./my-workspace
+```
+
+### Search Articles
+
+```bash
+# Search in article content
+data-modelling-cli knowledge search "authentication" --workspace ./my-workspace
+
+# Search with domain filter
+data-modelling-cli knowledge search "deployment" --domain platform \
+  --workspace ./my-workspace
+```
+
+### Check Knowledge Base Status
+
+```bash
+# Show summary of all articles by status and type
+data-modelling-cli knowledge status --workspace ./my-workspace
+```
+
+### Export Articles to Markdown
+
+```bash
+# Export all articles to knowledge-md/ folder
+data-modelling-cli knowledge export --workspace ./my-workspace
+
+# Export specific article
+data-modelling-cli knowledge export 1 --workspace ./my-workspace
+```
+
+### Knowledge Command Reference
+
+```
+data-modelling-cli knowledge <subcommand> [options]
+
+Subcommands:
+  new       Create a new knowledge article
+  list      List all articles
+  show      Show a specific article
+  search    Search article content
+  status    Show knowledge base status summary
+  export    Export articles to Markdown
+
+knowledge new Options:
+  --workspace <path>      Workspace directory (required)
+  --title <title>         Article title
+  --domain <domain>       Business domain
+  --type <type>           Article type: guide, reference, concept, tutorial, troubleshooting, runbook
+  --status <status>       Status: draft, review, published, archived, deprecated
+
+knowledge list Options:
+  --workspace <path>      Workspace directory (required)
+  --type <type>           Filter by article type
+  --status <status>       Filter by status
+  --domain <domain>       Filter by domain
+
+knowledge show Arguments:
+  <number>                Article number (e.g., 1 or 0001)
+Options:
+  --workspace <path>      Workspace directory (required)
+
+knowledge search Arguments:
+  <query>                 Search query
+Options:
+  --workspace <path>      Workspace directory (required)
+  --domain <domain>       Filter by domain
+
+knowledge status Options:
+  --workspace <path>      Workspace directory (required)
+
+knowledge export Arguments:
+  [number]                Optional article number (exports all if omitted)
+Options:
+  --workspace <path>      Workspace directory (required)
+```
+
+---
+
 ## Database Commands
 
 The CLI includes database commands for high-performance queries on large workspaces. These commands require the `cli-full` or `duckdb-backend` feature.

@@ -4,7 +4,7 @@
 //! Complex nested data (JSONB) is used for fields that don't need to be indexed.
 
 /// Schema version for migrations
-pub const SCHEMA_VERSION: i32 = 1;
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// Database schema helper
 pub struct DatabaseSchema;
@@ -202,6 +202,68 @@ CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY,
     applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Decision records (MADR-compliant architecture decision records)
+CREATE TABLE IF NOT EXISTS decisions (
+    id UUID PRIMARY KEY,
+    workspace_id UUID NOT NULL REFERENCES workspaces(id),
+    domain_id UUID REFERENCES domains(id),
+    number INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL,
+    category TEXT NOT NULL,
+    date TIMESTAMPTZ NOT NULL,
+    deciders JSON,
+    context TEXT NOT NULL,
+    drivers JSON,
+    options JSON,
+    decision TEXT NOT NULL,
+    consequences TEXT,
+    linked_assets JSON,
+    supersedes UUID,
+    superseded_by UUID,
+    compliance JSON,
+    rationale TEXT,
+    additional_context TEXT,
+    tags JSON,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    yaml_file_path TEXT,
+    yaml_hash TEXT,
+    UNIQUE(workspace_id, number)
+);
+
+-- Knowledge articles (knowledge base entries)
+CREATE TABLE IF NOT EXISTS knowledge_articles (
+    id UUID PRIMARY KEY,
+    workspace_id UUID NOT NULL REFERENCES workspaces(id),
+    domain_id UUID REFERENCES domains(id),
+    number TEXT NOT NULL,
+    title TEXT NOT NULL,
+    article_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    content TEXT NOT NULL,
+    author TEXT NOT NULL,
+    author_email TEXT,
+    reviewers JSON,
+    linked_assets JSON,
+    linked_decisions JSON,
+    related_articles JSON,
+    skill_level TEXT,
+    estimated_reading_time INTEGER,
+    review_frequency TEXT,
+    last_reviewed TIMESTAMPTZ,
+    next_review TIMESTAMPTZ,
+    version TEXT,
+    change_log JSON,
+    tags JSON,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    yaml_file_path TEXT,
+    yaml_hash TEXT,
+    UNIQUE(workspace_id, number)
+);
 "#
     }
 
@@ -237,6 +299,22 @@ CREATE INDEX IF NOT EXISTS idx_file_hashes_workspace ON file_hashes(workspace_id
 -- Sync log queries
 CREATE INDEX IF NOT EXISTS idx_sync_log_workspace ON sync_log(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_sync_log_time ON sync_log(sync_started_at DESC);
+
+-- Decision queries
+CREATE INDEX IF NOT EXISTS idx_decisions_workspace ON decisions(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_decisions_domain ON decisions(domain_id);
+CREATE INDEX IF NOT EXISTS idx_decisions_status ON decisions(status);
+CREATE INDEX IF NOT EXISTS idx_decisions_category ON decisions(category);
+CREATE INDEX IF NOT EXISTS idx_decisions_date ON decisions(date DESC);
+CREATE INDEX IF NOT EXISTS idx_decisions_number ON decisions(workspace_id, number);
+
+-- Knowledge article queries
+CREATE INDEX IF NOT EXISTS idx_knowledge_workspace ON knowledge_articles(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_domain ON knowledge_articles(domain_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_type ON knowledge_articles(article_type);
+CREATE INDEX IF NOT EXISTS idx_knowledge_status ON knowledge_articles(status);
+CREATE INDEX IF NOT EXISTS idx_knowledge_author ON knowledge_articles(author);
+CREATE INDEX IF NOT EXISTS idx_knowledge_number ON knowledge_articles(workspace_id, number);
 "#
     }
 
@@ -281,6 +359,8 @@ DROP TABLE IF EXISTS systems;
 DROP TABLE IF EXISTS relationships;
 DROP TABLE IF EXISTS columns;
 DROP TABLE IF EXISTS tables;
+DROP TABLE IF EXISTS knowledge_articles;
+DROP TABLE IF EXISTS decisions;
 DROP TABLE IF EXISTS domains;
 DROP TABLE IF EXISTS workspaces;
 DROP TABLE IF EXISTS schema_version;
@@ -511,6 +591,136 @@ LIMIT 1
 "#;
 }
 
+/// SQL for inserting/updating decisions
+pub mod decision_sql {
+    pub const UPSERT: &str = r#"
+INSERT INTO decisions (
+    id, workspace_id, domain_id, number, title, status, category, date,
+    deciders, context, drivers, options, decision, consequences,
+    linked_assets, supersedes, superseded_by, compliance, rationale,
+    additional_context, tags, created_at, updated_at, yaml_file_path, yaml_hash
+)
+VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+    $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
+)
+ON CONFLICT (id) DO UPDATE SET
+    workspace_id = EXCLUDED.workspace_id,
+    domain_id = EXCLUDED.domain_id,
+    number = EXCLUDED.number,
+    title = EXCLUDED.title,
+    status = EXCLUDED.status,
+    category = EXCLUDED.category,
+    date = EXCLUDED.date,
+    deciders = EXCLUDED.deciders,
+    context = EXCLUDED.context,
+    drivers = EXCLUDED.drivers,
+    options = EXCLUDED.options,
+    decision = EXCLUDED.decision,
+    consequences = EXCLUDED.consequences,
+    linked_assets = EXCLUDED.linked_assets,
+    supersedes = EXCLUDED.supersedes,
+    superseded_by = EXCLUDED.superseded_by,
+    compliance = EXCLUDED.compliance,
+    rationale = EXCLUDED.rationale,
+    additional_context = EXCLUDED.additional_context,
+    tags = EXCLUDED.tags,
+    updated_at = EXCLUDED.updated_at,
+    yaml_file_path = EXCLUDED.yaml_file_path,
+    yaml_hash = EXCLUDED.yaml_hash
+"#;
+
+    pub const SELECT_BY_WORKSPACE: &str =
+        "SELECT * FROM decisions WHERE workspace_id = $1 ORDER BY number";
+    pub const SELECT_BY_ID: &str = "SELECT * FROM decisions WHERE id = $1";
+    pub const SELECT_BY_NUMBER: &str =
+        "SELECT * FROM decisions WHERE workspace_id = $1 AND number = $2";
+    pub const SELECT_BY_DOMAIN: &str =
+        "SELECT * FROM decisions WHERE workspace_id = $1 AND domain_id = $2 ORDER BY number";
+    pub const SELECT_BY_STATUS: &str =
+        "SELECT * FROM decisions WHERE workspace_id = $1 AND status = $2 ORDER BY number";
+    pub const SELECT_BY_CATEGORY: &str =
+        "SELECT * FROM decisions WHERE workspace_id = $1 AND category = $2 ORDER BY number";
+    pub const DELETE: &str = "DELETE FROM decisions WHERE id = $1";
+    pub const DELETE_BY_WORKSPACE: &str = "DELETE FROM decisions WHERE workspace_id = $1";
+    pub const COUNT_BY_WORKSPACE: &str =
+        "SELECT COUNT(*) as count FROM decisions WHERE workspace_id = $1";
+    pub const MAX_NUMBER: &str =
+        "SELECT COALESCE(MAX(number), 0) as max_number FROM decisions WHERE workspace_id = $1";
+}
+
+/// SQL for inserting/updating knowledge articles
+pub mod knowledge_sql {
+    pub const UPSERT: &str = r#"
+INSERT INTO knowledge_articles (
+    id, workspace_id, domain_id, number, title, article_type, status,
+    summary, content, author, author_email, reviewers, linked_assets,
+    linked_decisions, related_articles, skill_level, estimated_reading_time,
+    review_frequency, last_reviewed, next_review, version, change_log,
+    tags, created_at, updated_at, yaml_file_path, yaml_hash
+)
+VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+    $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27
+)
+ON CONFLICT (id) DO UPDATE SET
+    workspace_id = EXCLUDED.workspace_id,
+    domain_id = EXCLUDED.domain_id,
+    number = EXCLUDED.number,
+    title = EXCLUDED.title,
+    article_type = EXCLUDED.article_type,
+    status = EXCLUDED.status,
+    summary = EXCLUDED.summary,
+    content = EXCLUDED.content,
+    author = EXCLUDED.author,
+    author_email = EXCLUDED.author_email,
+    reviewers = EXCLUDED.reviewers,
+    linked_assets = EXCLUDED.linked_assets,
+    linked_decisions = EXCLUDED.linked_decisions,
+    related_articles = EXCLUDED.related_articles,
+    skill_level = EXCLUDED.skill_level,
+    estimated_reading_time = EXCLUDED.estimated_reading_time,
+    review_frequency = EXCLUDED.review_frequency,
+    last_reviewed = EXCLUDED.last_reviewed,
+    next_review = EXCLUDED.next_review,
+    version = EXCLUDED.version,
+    change_log = EXCLUDED.change_log,
+    tags = EXCLUDED.tags,
+    updated_at = EXCLUDED.updated_at,
+    yaml_file_path = EXCLUDED.yaml_file_path,
+    yaml_hash = EXCLUDED.yaml_hash
+"#;
+
+    pub const SELECT_BY_WORKSPACE: &str =
+        "SELECT * FROM knowledge_articles WHERE workspace_id = $1 ORDER BY number";
+    pub const SELECT_BY_ID: &str = "SELECT * FROM knowledge_articles WHERE id = $1";
+    pub const SELECT_BY_NUMBER: &str =
+        "SELECT * FROM knowledge_articles WHERE workspace_id = $1 AND number = $2";
+    pub const SELECT_BY_DOMAIN: &str = "SELECT * FROM knowledge_articles WHERE workspace_id = $1 AND domain_id = $2 ORDER BY number";
+    pub const SELECT_BY_TYPE: &str = "SELECT * FROM knowledge_articles WHERE workspace_id = $1 AND article_type = $2 ORDER BY number";
+    pub const SELECT_BY_STATUS: &str =
+        "SELECT * FROM knowledge_articles WHERE workspace_id = $1 AND status = $2 ORDER BY number";
+    pub const SELECT_BY_AUTHOR: &str =
+        "SELECT * FROM knowledge_articles WHERE workspace_id = $1 AND author = $2 ORDER BY number";
+    pub const SEARCH_CONTENT: &str = r#"
+SELECT * FROM knowledge_articles
+WHERE workspace_id = $1 AND (
+    title ILIKE '%' || $2 || '%' OR
+    summary ILIKE '%' || $2 || '%' OR
+    content ILIKE '%' || $2 || '%'
+)
+ORDER BY number
+"#;
+    pub const DELETE: &str = "DELETE FROM knowledge_articles WHERE id = $1";
+    pub const DELETE_BY_WORKSPACE: &str = "DELETE FROM knowledge_articles WHERE workspace_id = $1";
+    pub const COUNT_BY_WORKSPACE: &str =
+        "SELECT COUNT(*) as count FROM knowledge_articles WHERE workspace_id = $1";
+    pub const MAX_NUMBER: &str = r#"
+SELECT COALESCE(MAX(CAST(SUBSTRING(number FROM 4) AS INTEGER)), 0) as max_number
+FROM knowledge_articles WHERE workspace_id = $1
+"#;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -524,6 +734,23 @@ mod tests {
     #[test]
     fn test_schema_version() {
         // Verify schema version is a positive integer
-        assert_eq!(SCHEMA_VERSION, 1);
+        assert_eq!(SCHEMA_VERSION, 2);
+    }
+
+    #[test]
+    #[allow(clippy::const_is_empty)]
+    fn test_decision_sql_not_empty() {
+        assert!(!super::decision_sql::UPSERT.is_empty());
+        assert!(!super::decision_sql::SELECT_BY_WORKSPACE.is_empty());
+        assert!(!super::decision_sql::DELETE.is_empty());
+    }
+
+    #[test]
+    #[allow(clippy::const_is_empty)]
+    fn test_knowledge_sql_not_empty() {
+        assert!(!super::knowledge_sql::UPSERT.is_empty());
+        assert!(!super::knowledge_sql::SELECT_BY_WORKSPACE.is_empty());
+        assert!(!super::knowledge_sql::DELETE.is_empty());
+        assert!(!super::knowledge_sql::SEARCH_CONTENT.is_empty());
     }
 }

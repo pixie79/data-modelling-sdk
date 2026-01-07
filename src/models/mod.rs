@@ -9,11 +9,13 @@ pub mod cads;
 pub mod column;
 pub mod cross_domain;
 pub mod data_model;
+pub mod decision;
 #[cfg(feature = "dmn")]
 pub mod dmn;
 pub mod domain;
 pub mod domain_config;
 pub mod enums;
+pub mod knowledge;
 pub mod odps;
 #[cfg(feature = "openapi")]
 pub mod openapi;
@@ -59,6 +61,16 @@ pub use relationship::{
 pub use table::{ContactDetails, Position, SlaProperty, Table};
 pub use tag::Tag;
 pub use workspace::{DomainReference, Workspace};
+
+// Decision and Knowledge models
+pub use decision::{
+    AssetLink, AssetRelationship, ComplianceAssessment, Decision, DecisionCategory, DecisionDriver,
+    DecisionIndex, DecisionIndexEntry, DecisionOption, DecisionStatus, DriverPriority,
+};
+pub use knowledge::{
+    ArticleRelationship, KnowledgeArticle, KnowledgeIndex, KnowledgeIndexEntry, KnowledgeStatus,
+    KnowledgeType, RelatedArticle, ReviewFrequency, SkillLevel,
+};
 
 use serde::{Deserialize, Serialize};
 

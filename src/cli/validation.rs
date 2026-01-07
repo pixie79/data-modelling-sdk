@@ -423,3 +423,183 @@ pub fn validate_relationships(content: &str) -> Result<(), CliError> {
 
     Ok(())
 }
+
+/// Validate a decision (.madr.yaml) file against the decision JSON Schema
+#[cfg(feature = "schema-validation")]
+pub fn validate_decision(content: &str) -> Result<(), CliError> {
+    validate_decision_internal(content).map_err(CliError::ValidationError)
+}
+
+#[cfg(not(feature = "schema-validation"))]
+pub fn validate_decision(_content: &str) -> Result<(), CliError> {
+    // Validation disabled - feature not enabled
+    Ok(())
+}
+
+/// Internal decision validation function that returns a string error (used by import/export modules)
+#[cfg(feature = "schema-validation")]
+pub(crate) fn validate_decision_internal(content: &str) -> Result<(), String> {
+    use jsonschema::Validator;
+    use serde_json::Value;
+
+    // Load Decision JSON Schema
+    let schema_content = include_str!("../../schemas/decision-schema.json");
+    let schema: Value = serde_json::from_str(schema_content)
+        .map_err(|e| format!("Failed to load decision schema: {}", e))?;
+
+    let validator =
+        Validator::new(&schema).map_err(|e| format!("Failed to compile decision schema: {}", e))?;
+
+    // Parse YAML content
+    let data: Value =
+        serde_yaml::from_str(content).map_err(|e| format!("Failed to parse YAML: {}", e))?;
+
+    // Validate
+    if let Err(error) = validator.validate(&data) {
+        let instance_path = error.instance_path();
+        let path_str = instance_path.to_string();
+        let path_str = if path_str == "/" || path_str.is_empty() {
+            "root".to_string()
+        } else {
+            path_str
+        };
+        return Err(format!(
+            "Decision validation failed at path '{}': {}",
+            path_str, error
+        ));
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "schema-validation"))]
+#[allow(dead_code)]
+pub(crate) fn validate_decision_internal(_content: &str) -> Result<(), String> {
+    // Validation disabled - feature not enabled
+    Ok(())
+}
+
+/// Validate a knowledge (.kb.yaml) file against the knowledge JSON Schema
+#[cfg(feature = "schema-validation")]
+pub fn validate_knowledge(content: &str) -> Result<(), CliError> {
+    validate_knowledge_internal(content).map_err(CliError::ValidationError)
+}
+
+#[cfg(not(feature = "schema-validation"))]
+pub fn validate_knowledge(_content: &str) -> Result<(), CliError> {
+    // Validation disabled - feature not enabled
+    Ok(())
+}
+
+/// Internal knowledge validation function that returns a string error (used by import/export modules)
+#[cfg(feature = "schema-validation")]
+pub(crate) fn validate_knowledge_internal(content: &str) -> Result<(), String> {
+    use jsonschema::Validator;
+    use serde_json::Value;
+
+    // Load Knowledge JSON Schema
+    let schema_content = include_str!("../../schemas/knowledge-schema.json");
+    let schema: Value = serde_json::from_str(schema_content)
+        .map_err(|e| format!("Failed to load knowledge schema: {}", e))?;
+
+    let validator = Validator::new(&schema)
+        .map_err(|e| format!("Failed to compile knowledge schema: {}", e))?;
+
+    // Parse YAML content
+    let data: Value =
+        serde_yaml::from_str(content).map_err(|e| format!("Failed to parse YAML: {}", e))?;
+
+    // Validate
+    if let Err(error) = validator.validate(&data) {
+        let instance_path = error.instance_path();
+        let path_str = instance_path.to_string();
+        let path_str = if path_str == "/" || path_str.is_empty() {
+            "root".to_string()
+        } else {
+            path_str
+        };
+        return Err(format!(
+            "Knowledge validation failed at path '{}': {}",
+            path_str, error
+        ));
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "schema-validation"))]
+#[allow(dead_code)]
+pub(crate) fn validate_knowledge_internal(_content: &str) -> Result<(), String> {
+    // Validation disabled - feature not enabled
+    Ok(())
+}
+
+/// Validate a decisions index (decisions.yaml) file against the decisions-index JSON Schema
+#[cfg(feature = "schema-validation")]
+pub fn validate_decisions_index(content: &str) -> Result<(), CliError> {
+    use jsonschema::Validator;
+    use serde_json::Value;
+
+    // Load Decisions Index JSON Schema
+    let schema_content = include_str!("../../schemas/decisions-index-schema.json");
+    let schema: Value = serde_json::from_str(schema_content).map_err(|e| {
+        CliError::ValidationError(format!("Failed to load decisions-index schema: {}", e))
+    })?;
+
+    let validator = Validator::new(&schema).map_err(|e| {
+        CliError::ValidationError(format!("Failed to compile decisions-index schema: {}", e))
+    })?;
+
+    // Parse YAML content
+    let data: Value = serde_yaml::from_str(content)
+        .map_err(|e| CliError::ValidationError(format!("Failed to parse YAML: {}", e)))?;
+
+    // Validate
+    if let Err(error) = validator.validate(&data) {
+        let error_msg = format_validation_error(&error, "Decisions Index");
+        return Err(CliError::ValidationError(error_msg));
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "schema-validation"))]
+pub fn validate_decisions_index(_content: &str) -> Result<(), CliError> {
+    // Validation disabled - feature not enabled
+    Ok(())
+}
+
+/// Validate a knowledge index (knowledge.yaml) file against the knowledge-index JSON Schema
+#[cfg(feature = "schema-validation")]
+pub fn validate_knowledge_index(content: &str) -> Result<(), CliError> {
+    use jsonschema::Validator;
+    use serde_json::Value;
+
+    // Load Knowledge Index JSON Schema
+    let schema_content = include_str!("../../schemas/knowledge-index-schema.json");
+    let schema: Value = serde_json::from_str(schema_content).map_err(|e| {
+        CliError::ValidationError(format!("Failed to load knowledge-index schema: {}", e))
+    })?;
+
+    let validator = Validator::new(&schema).map_err(|e| {
+        CliError::ValidationError(format!("Failed to compile knowledge-index schema: {}", e))
+    })?;
+
+    // Parse YAML content
+    let data: Value = serde_yaml::from_str(content)
+        .map_err(|e| CliError::ValidationError(format!("Failed to parse YAML: {}", e)))?;
+
+    // Validate
+    if let Err(error) = validator.validate(&data) {
+        let error_msg = format_validation_error(&error, "Knowledge Index");
+        return Err(CliError::ValidationError(error_msg));
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "schema-validation"))]
+pub fn validate_knowledge_index(_content: &str) -> Result<(), CliError> {
+    // Validation disabled - feature not enabled
+    Ok(())
+}
