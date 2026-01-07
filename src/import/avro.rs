@@ -69,11 +69,7 @@ impl AvroImporter {
                     sdk_tables.push(TableData {
                         table_index: idx,
                         name: Some(table.name.clone()),
-                        columns: table
-                            .columns
-                            .iter()
-                            .map(column_to_column_data)
-                            .collect(),
+                        columns: table.columns.iter().map(column_to_column_data).collect(),
                     });
                 }
                 let sdk_errors: Vec<ImportError> = errors

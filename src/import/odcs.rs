@@ -109,11 +109,7 @@ impl ODCSImporter {
                 let sdk_tables = vec![TableData {
                     table_index: 0,
                     name: Some(table.name.clone()),
-                    columns: table
-                        .columns
-                        .iter()
-                        .map(column_to_column_data)
-                        .collect(),
+                    columns: table.columns.iter().map(column_to_column_data).collect(),
                 }];
                 let sdk_errors: Vec<ImportError> = errors
                     .iter()
