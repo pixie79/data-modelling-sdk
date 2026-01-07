@@ -9,9 +9,9 @@
 //! - Liquibase format
 
 use super::odcs_shared::{
-    ParserError, expand_nested_column, json_value_to_serde_value, normalize_data_type,
-    parse_data_vault_classification, parse_medallion_layer, parse_scd_pattern, resolve_ref,
-    yaml_to_json_value,
+    ParserError, column_to_column_data, expand_nested_column, json_value_to_serde_value,
+    normalize_data_type, parse_data_vault_classification, parse_medallion_layer, parse_scd_pattern,
+    resolve_ref, yaml_to_json_value,
 };
 use super::{ImportError, ImportResult, TableData};
 use crate::models::column::ForeignKey;
@@ -112,29 +112,7 @@ impl ODCSImporter {
                     columns: table
                         .columns
                         .iter()
-                        .map(|c| super::ColumnData {
-                            name: c.name.clone(),
-                            data_type: c.data_type.clone(),
-                            physical_type: c.physical_type.clone(),
-                            nullable: c.nullable,
-                            primary_key: c.primary_key,
-                            description: if c.description.is_empty() {
-                                None
-                            } else {
-                                Some(c.description.clone())
-                            },
-                            quality: if c.quality.is_empty() {
-                                None
-                            } else {
-                                Some(c.quality.clone())
-                            },
-                            relationships: c.relationships.clone(),
-                            enum_values: if c.enum_values.is_empty() {
-                                None
-                            } else {
-                                Some(c.enum_values.clone())
-                            },
-                        })
+                        .map(|c| column_to_column_data(c))
                         .collect(),
                 }];
                 let sdk_errors: Vec<ImportError> = errors
@@ -420,20 +398,13 @@ impl ODCSImporter {
         Ok(Column {
             name,
             data_type,
-            physical_type: None,
             nullable,
             primary_key,
-            secondary_key: false,
-            composite_key: None,
             foreign_key,
             constraints,
             description,
-            errors: Vec::new(),
             quality: column_quality_rules,
-            relationships: Vec::new(),
-            enum_values: Vec::new(),
-            column_order: 0,
-            nested_data: None,
+            ..Default::default()
         })
     }
 
@@ -1753,11 +1724,6 @@ impl ODCSImporter {
                             data_type: "OBJECT".to_string(),
                             physical_type: def_physical_type,
                             nullable: !required,
-                            primary_key: false,
-                            secondary_key: false,
-                            composite_key: None,
-                            foreign_key: None,
-                            constraints: Vec::new(),
                             description: if description.is_empty() {
                                 definition
                                     .get("description")
@@ -1767,12 +1733,9 @@ impl ODCSImporter {
                             } else {
                                 description.clone()
                             },
-                            errors: Vec::new(),
                             quality: quality_rules.clone(),
                             relationships: ref_to_relationships(&ref_path),
-                            enum_values: Vec::new(),
-                            column_order: 0,
-                            nested_data: None,
+                            ..Default::default()
                         });
                     }
                 } else {
@@ -1803,11 +1766,6 @@ impl ODCSImporter {
                         data_type: def_type,
                         physical_type: def_physical_type,
                         nullable: !required,
-                        primary_key: false,
-                        secondary_key: false,
-                        composite_key: None,
-                        foreign_key: None,
-                        constraints: Vec::new(),
                         description: if description.is_empty() {
                             definition
                                 .get("description")
@@ -1817,12 +1775,10 @@ impl ODCSImporter {
                         } else {
                             description
                         },
-                        errors: Vec::new(),
                         quality: quality_rules,
                         relationships: ref_to_relationships(&ref_path),
                         enum_values,
-                        column_order: 0,
-                        nested_data: None,
+                        ..Default::default()
                     });
                 }
                 return Ok(columns);
@@ -1848,19 +1804,10 @@ impl ODCSImporter {
                     name: field_name.to_string(),
                     data_type: "OBJECT".to_string(),
                     physical_type: field_physical_type,
-                    nullable: true,
-                    primary_key: false,
-                    secondary_key: false,
-                    composite_key: None,
-                    foreign_key: None,
-                    constraints: Vec::new(),
                     description,
                     errors: col_errors,
-                    quality: Vec::new(),
                     relationships: ref_to_relationships(&Some(ref_str.to_string())),
-                    enum_values: Vec::new(),
-                    column_order: 0,
-                    nested_data: None,
+                    ..Default::default()
                 });
                 return Ok(columns);
             }
@@ -1899,13 +1846,7 @@ impl ODCSImporter {
                             .get("required")
                             .and_then(|v| v.as_bool())
                             .unwrap_or(false),
-                        primary_key: false,
-                        secondary_key: false,
-                        composite_key: None,
-                        foreign_key: None,
-                        constraints: Vec::new(),
                         description: description.clone(),
-                        errors: Vec::new(),
                         quality: quality_rules.clone(),
                         relationships: ref_to_relationships(
                             &field_data
@@ -1913,9 +1854,7 @@ impl ODCSImporter {
                                 .and_then(|v| v.as_str())
                                 .map(|s| s.to_string()),
                         ),
-                        enum_values: Vec::new(),
-                        column_order: 0,
-                        nested_data: None,
+                        ..Default::default()
                     });
 
                     // Add nested columns
@@ -1977,22 +1916,12 @@ impl ODCSImporter {
                                 .get("required")
                                 .and_then(|v| v.as_bool())
                                 .unwrap_or(false),
-                            primary_key: false,
-                            secondary_key: false,
-                            composite_key: None,
-                            foreign_key: None,
-                            constraints: Vec::new(),
                             description: field_data
                                 .get("description")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
                                 .to_string(),
-                            errors: Vec::new(),
-                            quality: Vec::new(),
-                            relationships: Vec::new(),
-                            enum_values: Vec::new(),
-                            column_order: 0,
-                            nested_data: None,
+                            ..Default::default()
                         });
 
                         // Extract nested fields from items.properties or items.fields if present
@@ -2044,22 +1973,12 @@ impl ODCSImporter {
                                                     .get("required")
                                                     .and_then(|v| v.as_bool())
                                                     .unwrap_or(false),
-                                                primary_key: false,
-                                                secondary_key: false,
-                                                composite_key: None,
-                                                foreign_key: None,
-                                                constraints: Vec::new(),
                                                 description: nested_field_obj
                                                     .get("description")
                                                     .and_then(|v| v.as_str())
                                                     .unwrap_or("")
                                                     .to_string(),
-                                                errors: Vec::new(),
-                                                quality: Vec::new(),
-                                                relationships: Vec::new(),
-                                                enum_values: Vec::new(),
-                                                column_order: 0,
-                                                nested_data: None,
+                                                ..Default::default()
                                             });
                                         }
                                     }
@@ -2116,22 +2035,12 @@ impl ODCSImporter {
                                                         .get("required")
                                                         .and_then(|v| v.as_bool())
                                                         .unwrap_or(false),
-                                                    primary_key: false,
-                                                    secondary_key: false,
-                                                    composite_key: None,
-                                                    foreign_key: None,
-                                                    constraints: Vec::new(),
                                                     description: prop_obj
                                                         .get("description")
                                                         .and_then(|v| v.as_str())
                                                         .unwrap_or("")
                                                         .to_string(),
-                                                    errors: Vec::new(),
-                                                    quality: Vec::new(),
-                                                    relationships: Vec::new(),
-                                                    enum_values: Vec::new(),
-                                                    column_order: 0,
-                                                    nested_data: None,
+                                                    ..Default::default()
                                                 });
                                             }
                                         }
@@ -2155,13 +2064,7 @@ impl ODCSImporter {
                                 .get("required")
                                 .and_then(|v| v.as_bool())
                                 .unwrap_or(false),
-                            primary_key: false,
-                            secondary_key: false,
-                            composite_key: None,
-                            foreign_key: None,
-                            constraints: Vec::new(),
                             description: description.clone(),
-                            errors: Vec::new(),
                             quality: quality_rules.clone(),
                             relationships: ref_to_relationships(
                                 &field_data
@@ -2169,9 +2072,7 @@ impl ODCSImporter {
                                     .and_then(|v| v.as_str())
                                     .map(|s| s.to_string()),
                             ),
-                            enum_values: Vec::new(),
-                            column_order: 0,
-                            nested_data: None,
+                            ..Default::default()
                         });
                         return Ok(columns);
                     }
@@ -2189,13 +2090,7 @@ impl ODCSImporter {
                             .get("required")
                             .and_then(|v| v.as_bool())
                             .unwrap_or(false),
-                        primary_key: false,
-                        secondary_key: false,
-                        composite_key: None,
-                        foreign_key: None,
-                        constraints: Vec::new(),
                         description: description.clone(),
-                        errors: Vec::new(),
                         quality: quality_rules.clone(),
                         relationships: ref_to_relationships(
                             &field_data
@@ -2203,9 +2098,7 @@ impl ODCSImporter {
                                 .and_then(|v| v.as_str())
                                 .map(|s| s.to_string()),
                         ),
-                        enum_values: Vec::new(),
-                        column_order: 0,
-                        nested_data: None,
+                        ..Default::default()
                     });
                     return Ok(columns);
                 }
@@ -2223,13 +2116,7 @@ impl ODCSImporter {
                     .get("required")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false),
-                primary_key: false,
-                secondary_key: false,
-                composite_key: None,
-                foreign_key: None,
-                constraints: Vec::new(),
                 description: description.clone(),
-                errors: Vec::new(),
                 quality: quality_rules.clone(),
                 relationships: ref_to_relationships(
                     &field_data
@@ -2237,9 +2124,7 @@ impl ODCSImporter {
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string()),
                 ),
-                enum_values: Vec::new(),
-                column_order: 0,
-                nested_data: None,
+                ..Default::default()
             });
             return Ok(columns);
         }
@@ -2271,13 +2156,7 @@ impl ODCSImporter {
                     .get("required")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false),
-                primary_key: false,
-                secondary_key: false,
-                composite_key: None,
-                foreign_key: None,
-                constraints: Vec::new(),
                 description: description.clone(),
-                errors: Vec::new(),
                 quality: quality_rules.clone(),
                 relationships: ref_to_relationships(
                     &field_data
@@ -2285,9 +2164,7 @@ impl ODCSImporter {
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string()),
                 ),
-                enum_values: Vec::new(),
-                column_order: 0,
-                nested_data: None,
+                ..Default::default()
             });
 
             // Extract nested fields recursively - handle both object and array formats
@@ -2324,22 +2201,12 @@ impl ODCSImporter {
                                         .get("required")
                                         .and_then(|v| v.as_bool())
                                         .unwrap_or(false),
-                                    primary_key: false,
-                                    secondary_key: false,
-                                    composite_key: None,
-                                    foreign_key: None,
-                                    constraints: Vec::new(),
                                     description: nested_field_obj
                                         .get("description")
                                         .and_then(|v| v.as_str())
                                         .unwrap_or("")
                                         .to_string(),
-                                    errors: Vec::new(),
-                                    quality: Vec::new(),
-                                    relationships: Vec::new(),
-                                    enum_values: Vec::new(),
-                                    column_order: 0,
-                                    nested_data: None,
+                                    ..Default::default()
                                 });
                             }
                         }
@@ -2385,22 +2252,12 @@ impl ODCSImporter {
                                             .get("required")
                                             .and_then(|v| v.as_bool())
                                             .unwrap_or(false),
-                                        primary_key: false,
-                                        secondary_key: false,
-                                        composite_key: None,
-                                        foreign_key: None,
-                                        constraints: Vec::new(),
                                         description: prop_obj
                                             .get("description")
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("")
                                             .to_string(),
-                                        errors: Vec::new(),
-                                        quality: Vec::new(),
-                                        relationships: Vec::new(),
-                                        enum_values: Vec::new(),
-                                        column_order: 0,
-                                        nested_data: None,
+                                        ..Default::default()
                                     });
                                 }
                             }
@@ -2476,17 +2333,11 @@ impl ODCSImporter {
                 .get("primaryKey")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false),
-            secondary_key: false,
-            composite_key: None,
             foreign_key: self.parse_foreign_key_from_data_contract(field_data),
-            constraints: Vec::new(),
             description: field_description,
-            errors: Vec::new(),
             quality: column_quality_rules,
             relationships: self.parse_relationships_from_field(field_data),
-            enum_values: Vec::new(),
-            column_order: 0,
-            nested_data: None,
+            ..Default::default()
         });
 
         Ok(columns)
@@ -2726,22 +2577,12 @@ impl ODCSImporter {
                                     .get("required")
                                     .and_then(|v| v.as_bool())
                                     .unwrap_or(false),
-                                primary_key: false,
-                                secondary_key: false,
-                                composite_key: None,
-                                foreign_key: None,
-                                constraints: Vec::new(),
                                 description: field_data
                                     .get("description")
                                     .and_then(|v| v.as_str())
                                     .unwrap_or("")
                                     .to_string(),
-                                errors: Vec::new(),
-                                quality: Vec::new(),
-                                relationships: Vec::new(),
-                                enum_values: Vec::new(),
-                                column_order: 0,
-                                nested_data: None,
+                                ..Default::default()
                             });
                         }
                     }
@@ -2760,22 +2601,12 @@ impl ODCSImporter {
                             .get("required")
                             .and_then(|v| v.as_bool())
                             .unwrap_or(false),
-                        primary_key: false,
-                        secondary_key: false,
-                        composite_key: None,
-                        foreign_key: None,
-                        constraints: Vec::new(),
                         description: field_data
                             .get("description")
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string(),
-                        errors: Vec::new(),
-                        quality: Vec::new(),
-                        relationships: Vec::new(),
-                        enum_values: Vec::new(),
-                        column_order: 0,
-                        nested_data: None,
+                        ..Default::default()
                     });
                 } else {
                     // Simple nested field (not a STRUCT)
@@ -2791,22 +2622,12 @@ impl ODCSImporter {
                             .get("required")
                             .and_then(|v| v.as_bool())
                             .unwrap_or(false),
-                        primary_key: false,
-                        secondary_key: false,
-                        composite_key: None,
-                        foreign_key: None,
-                        constraints: Vec::new(),
                         description: field_data
                             .get("description")
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string(),
-                        errors: Vec::new(),
-                        quality: Vec::new(),
-                        relationships: Vec::new(),
-                        enum_values: Vec::new(),
-                        column_order: 0,
-                        nested_data: None,
+                        ..Default::default()
                     });
                 }
             }
