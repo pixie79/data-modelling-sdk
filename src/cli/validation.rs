@@ -259,6 +259,7 @@ pub(crate) fn validate_odps_internal(content: &str) -> Result<(), String> {
 }
 
 #[cfg(not(feature = "schema-validation"))]
+#[allow(dead_code)]
 pub(crate) fn validate_odps_internal(_content: &str) -> Result<(), String> {
     // Validation disabled - feature not enabled
     Ok(())
@@ -334,6 +335,7 @@ pub(crate) fn validate_cads_internal(content: &str) -> Result<(), String> {
 }
 
 #[cfg(not(feature = "schema-validation"))]
+#[allow(dead_code)]
 pub(crate) fn validate_cads_internal(_content: &str) -> Result<(), String> {
     // Validation disabled - feature not enabled
     Ok(())
