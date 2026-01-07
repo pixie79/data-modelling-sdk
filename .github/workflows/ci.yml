@@ -7,8 +7,6 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  # Reduce memory pressure during linking
-  CARGO_BUILD_JOBS: 2
 
 # Default permissions for all jobs (can be overridden per job)
 permissions:
@@ -16,7 +14,7 @@ permissions:
   pull-requests: read
 
 jobs:
-  # Linting and formatting check - runs WITHOUT heavy features to speed up
+  # Linting and formatting check
   lint:
     name: Lint and Format Check
     runs-on: ubuntu-latest
@@ -62,8 +60,8 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   # Core tests - runs without database features (fast)
-  test-core:
-    name: Test (Core)
+  test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -83,69 +81,25 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-registry-
 
-      - name: Cache cargo build (test-core)
+      - name: Cache cargo build (test)
         uses: actions/cache@v4
         with:
           path: target/
-          key: ${{ runner.os }}-cargo-test-core-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('src/**/*.rs') }}
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('src/**/*.rs') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-test-core-${{ hashFiles('Cargo.lock') }}-
-            ${{ runner.os }}-cargo-test-core-
+            ${{ runner.os }}-cargo-test-${{ hashFiles('Cargo.lock') }}-
+            ${{ runner.os }}-cargo-test-
 
-      # Run tests WITHOUT database features - these are the majority of tests
-      - name: Run core tests
+      # Run tests WITHOUT database features - DuckDB is too large for GitHub Actions
+      # Database tests should be run locally with: cargo test --features cli-full
+      - name: Run tests
         run: cargo test --features "api-backend,native-fs,git,cli,openapi,bpmn,dmn"
-
-  # Database tests - runs with database features (separate job to isolate memory pressure)
-  test-database:
-    name: Test (Database)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-
-
-      - name: Cache cargo build (test-db)
-        uses: actions/cache@v4
-        with:
-          path: target/
-          key: ${{ runner.os }}-cargo-test-db-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('src/**/*.rs') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-test-db-${{ hashFiles('Cargo.lock') }}-
-            ${{ runner.os }}-cargo-test-db-
-
-      # Increase swap to handle DuckDB linking
-      - name: Increase swap space
-        run: |
-          sudo swapoff -a
-          sudo fallocate -l 8G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          sudo swapon --show
-
-      # Run only database-specific tests with reduced parallelism
-      - name: Run database tests
-        run: cargo test --features "cli-full" -- --test-threads=1 database
 
   # Build verification - only runs if tests pass
   build:
-    name: Build Check (Linux)
+    name: Build Check
     runs-on: ubuntu-latest
-    needs: [lint, test-core]
+    needs: [lint, test]
     steps:
       - uses: actions/checkout@v4
 
@@ -173,65 +127,11 @@ jobs:
             ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}-
             ${{ runner.os }}-cargo-release-
 
-      # Increase swap for release builds with DuckDB
-      - name: Increase swap space
-        run: |
-          sudo swapoff -a
-          sudo fallocate -l 8G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-
-      - name: Build library (core features)
+      - name: Build library
         run: cargo build --release --features "api-backend,native-fs,git,openapi,bpmn,dmn"
 
       - name: Build CLI binary
         run: cargo build --release --bin data-modelling-cli --features cli,openapi
-
-  # CLI with database build - separate job due to memory requirements
-  build-cli-full:
-    name: Build CLI (Full)
-    runs-on: ubuntu-latest
-    needs: [lint, test-core, test-database]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-
-
-      - name: Cache cargo build (cli-full)
-        uses: actions/cache@v4
-        with:
-          path: target/
-          key: ${{ runner.os }}-cargo-cli-full-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('src/**/*.rs') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-cli-full-${{ hashFiles('Cargo.lock') }}-
-            ${{ runner.os }}-cargo-cli-full-
-
-      - name: Increase swap space
-        run: |
-          sudo swapoff -a
-          sudo fallocate -l 8G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-
-      - name: Build CLI with database support
-        env:
-          CARGO_BUILD_JOBS: 1
-        run: cargo build --release --bin data-modelling-cli --features cli-full,openapi
 
   # WASM build verification
   build-wasm:
