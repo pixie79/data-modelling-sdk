@@ -33,10 +33,11 @@ use super::Tag;
 use super::decision::AssetLink;
 
 /// Knowledge article type
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum KnowledgeType {
     /// How-to guide or tutorial
+    #[default]
     Guide,
     /// Standard or specification
     Standard,
@@ -52,12 +53,6 @@ pub enum KnowledgeType {
     Policy,
     /// Template or boilerplate
     Template,
-}
-
-impl Default for KnowledgeType {
-    fn default() -> Self {
-        Self::Guide
-    }
 }
 
 impl std::fmt::Display for KnowledgeType {
@@ -76,10 +71,11 @@ impl std::fmt::Display for KnowledgeType {
 }
 
 /// Knowledge article status
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum KnowledgeStatus {
     /// Article is being drafted
+    #[default]
     Draft,
     /// Article is published and active
     Published,
@@ -87,12 +83,6 @@ pub enum KnowledgeStatus {
     Archived,
     /// Article is deprecated (should not be used)
     Deprecated,
-}
-
-impl Default for KnowledgeStatus {
-    fn default() -> Self {
-        Self::Draft
-    }
 }
 
 impl std::fmt::Display for KnowledgeStatus {

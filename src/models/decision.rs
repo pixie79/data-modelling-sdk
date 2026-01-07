@@ -38,10 +38,11 @@ use super::Tag;
 /// Decision status in lifecycle
 ///
 /// Decisions follow a lifecycle: Proposed → Accepted → [Deprecated | Superseded]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum DecisionStatus {
     /// Decision has been proposed but not yet accepted
+    #[default]
     Proposed,
     /// Decision has been accepted and is in effect
     Accepted,
@@ -49,12 +50,6 @@ pub enum DecisionStatus {
     Deprecated,
     /// Decision has been replaced by another decision
     Superseded,
-}
-
-impl Default for DecisionStatus {
-    fn default() -> Self {
-        Self::Proposed
-    }
 }
 
 impl std::fmt::Display for DecisionStatus {
@@ -71,10 +66,11 @@ impl std::fmt::Display for DecisionStatus {
 /// Decision category
 ///
 /// Categories help organize decisions by their domain of impact.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum DecisionCategory {
     /// System architecture decisions
+    #[default]
     Architecture,
     /// Data design and modeling decisions
     DataDesign,
@@ -96,12 +92,6 @@ pub enum DecisionCategory {
     Tooling,
 }
 
-impl Default for DecisionCategory {
-    fn default() -> Self {
-        Self::Architecture
-    }
-}
-
 impl std::fmt::Display for DecisionCategory {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -120,18 +110,13 @@ impl std::fmt::Display for DecisionCategory {
 }
 
 /// Priority level for decision drivers
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum DriverPriority {
     High,
+    #[default]
     Medium,
     Low,
-}
-
-impl Default for DriverPriority {
-    fn default() -> Self {
-        Self::Medium
-    }
 }
 
 /// Driver/reason for the decision
