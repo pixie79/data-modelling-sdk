@@ -99,6 +99,10 @@ pub struct SyncStatus {
     pub relationship_count: usize,
     /// Number of domains in the database
     pub domain_count: usize,
+    /// Number of decisions in the database
+    pub decision_count: usize,
+    /// Number of knowledge articles in the database
+    pub knowledge_count: usize,
     /// Whether the database cache is stale (YAML files changed)
     pub is_stale: bool,
     /// Number of files that need to be synced
@@ -114,6 +118,8 @@ impl Default for SyncStatus {
             column_count: 0,
             relationship_count: 0,
             domain_count: 0,
+            decision_count: 0,
+            knowledge_count: 0,
             is_stale: true,
             pending_sync_count: 0,
         }
@@ -276,6 +282,58 @@ pub trait DatabaseBackend: Send + Sync {
         &self,
         workspace_id: Uuid,
     ) -> DatabaseResult<Vec<crate::models::Relationship>>;
+
+    /// Sync decisions from YAML data to database
+    ///
+    /// # Arguments
+    /// * `workspace_id` - Workspace UUID
+    /// * `decisions` - Decisions to sync
+    ///
+    /// # Returns
+    /// Number of decisions synced
+    async fn sync_decisions(
+        &self,
+        workspace_id: Uuid,
+        decisions: &[crate::models::decision::Decision],
+    ) -> DatabaseResult<usize>;
+
+    /// Sync knowledge articles from YAML data to database
+    ///
+    /// # Arguments
+    /// * `workspace_id` - Workspace UUID
+    /// * `articles` - Knowledge articles to sync
+    ///
+    /// # Returns
+    /// Number of articles synced
+    async fn sync_knowledge(
+        &self,
+        workspace_id: Uuid,
+        articles: &[crate::models::knowledge::KnowledgeArticle],
+    ) -> DatabaseResult<usize>;
+
+    /// Export decisions from database back to Decision models
+    ///
+    /// # Arguments
+    /// * `workspace_id` - Workspace UUID
+    ///
+    /// # Returns
+    /// Vector of Decision models
+    async fn export_decisions(
+        &self,
+        workspace_id: Uuid,
+    ) -> DatabaseResult<Vec<crate::models::decision::Decision>>;
+
+    /// Export knowledge articles from database back to KnowledgeArticle models
+    ///
+    /// # Arguments
+    /// * `workspace_id` - Workspace UUID
+    ///
+    /// # Returns
+    /// Vector of KnowledgeArticle models
+    async fn export_knowledge(
+        &self,
+        workspace_id: Uuid,
+    ) -> DatabaseResult<Vec<crate::models::knowledge::KnowledgeArticle>>;
 
     /// Get sync status for a workspace
     ///

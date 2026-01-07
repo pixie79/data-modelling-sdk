@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-01-07
+
+### Added
+
+- **feat(ddl)**: Architecture Decision Records (DDL) with MADR format support
+  - `Decision` model with full MADR (Markdown Any Decision Records) field support
+  - Decision lifecycle: draft, proposed, accepted, deprecated, superseded, rejected
+  - Decision categories: architecture, technology, process, security, data, integration
+  - `DecisionIndex` for tracking decision metadata and numbering
+  - `DecisionImporter` for parsing decision YAML files
+  - `DecisionExporter` for exporting decisions to Markdown format
+  - Storage integration: `load_decisions()`, `save_decision()`, `export_decision_markdown()`
+  - Database schema with `decisions` table and comprehensive indexes
+  - CLI commands: `decision new`, `decision list`, `decision show`, `decision status`, `decision export`
+
+- **feat(kb)**: Knowledge Base (KB) for domain documentation
+  - `KnowledgeArticle` model for storing guides, references, tutorials, and runbooks
+  - Article types: guide, reference, concept, tutorial, troubleshooting, runbook
+  - Article lifecycle: draft, review, published, archived, deprecated
+  - `KnowledgeIndex` for tracking article metadata and numbering
+  - `KnowledgeImporter` for parsing knowledge YAML files
+  - `KnowledgeExporter` for exporting articles to Markdown format
+  - Storage integration: `load_knowledge()`, `save_knowledge()`, `export_knowledge_markdown()`
+  - Database schema with `knowledge_articles` table and comprehensive indexes
+  - CLI commands: `knowledge new`, `knowledge list`, `knowledge show`, `knowledge search`, `knowledge status`, `knowledge export`
+
+- **feat(database)**: Extended database schema for DDL/KB (schema version 2)
+  - `decisions` table with all MADR fields: number, title, status, category, date, deciders, context, drivers, options, decision, consequences, linked_assets, supersedes, superseded_by, compliance, rationale, additional_context
+  - `knowledge_articles` table with all KB fields: number, title, article_type, status, summary, content, author, author_email, reviewers, linked_assets, linked_decisions, related_articles, skill_level, estimated_reading_time, review_frequency
+  - Indexes for workspace, domain, status, category, type, author, and number queries
+  - SQL modules: `decision_sql` and `knowledge_sql` with UPSERT, SELECT, DELETE, COUNT operations
+
+- **feat(sync)**: Extended sync engine for DDL/KB
+  - `sync_decisions()` and `sync_knowledge()` methods in DatabaseBackend trait
+  - `export_decisions()` and `export_knowledge()` methods for database export
+  - `sync_workspace_full()` now includes decisions and knowledge articles
+  - `export_workspace_full()` returns complete workspace including DDL/KB content
+  - Extended `SyncResult` with `decisions_synced` and `knowledge_synced` counts
+  - Extended `SyncStatus` with `decision_count` and `knowledge_count`
+
+### Documentation
+
+- Updated README.md with Decision Records and Knowledge Base sections
+- Updated CLI.md with `decision` and `knowledge` command documentation
+- Updated LLM.txt with DDL/KB modules and architecture
+
 ## [1.12.0] - 2026-01-07
 
 ### Added

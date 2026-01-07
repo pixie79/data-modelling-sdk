@@ -216,6 +216,14 @@ enum ValidateFormatArg {
     JsonSchema,
     /// SQL (CREATE TABLE statements)
     Sql,
+    /// MADR Decision Record (.madr.yaml)
+    Decision,
+    /// Knowledge Base Article (.kb.yaml)
+    Knowledge,
+    /// Decisions Index (decisions.yaml)
+    DecisionsIndex,
+    /// Knowledge Index (knowledge.yaml)
+    KnowledgeIndex,
 }
 
 #[cfg(feature = "cli")]
@@ -369,6 +377,10 @@ fn main() {
                 ValidateFormatArg::Avro => "avro",
                 ValidateFormatArg::JsonSchema => "json-schema",
                 ValidateFormatArg::Sql => "sql",
+                ValidateFormatArg::Decision => "decision",
+                ValidateFormatArg::Knowledge => "knowledge",
+                ValidateFormatArg::DecisionsIndex => "decisions-index",
+                ValidateFormatArg::KnowledgeIndex => "knowledge-index",
             };
             handle_validate(validate_format, &input)
         }

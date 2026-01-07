@@ -54,4 +54,13 @@ pub enum CliError {
 
     #[error("Database error: {0}")]
     DatabaseError(String),
+
+    #[error("Parse error: {0}")]
+    ParseError(String),
+
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+
+    #[error("Not found: {0}")]
+    NotFound(String),
 }

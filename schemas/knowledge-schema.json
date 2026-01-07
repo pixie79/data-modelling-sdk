@@ -1,0 +1,167 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/pixie79/data-modelling-sdk/schemas/knowledge-schema.json",
+  "title": "Knowledge Base Article",
+  "description": "Schema for Knowledge Base articles (.kb.yaml)",
+  "type": "object",
+  "required": ["id", "number", "title", "article_type", "status", "summary", "content", "author", "created_at", "updated_at"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for the article"
+    },
+    "number": {
+      "type": "string",
+      "pattern": "^KB-[0-9]{4}$",
+      "description": "Article number (KB-0001, KB-0002, etc.)"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Article title"
+    },
+    "article_type": {
+      "type": "string",
+      "enum": ["guide", "standard", "reference", "glossary", "howto", "troubleshooting", "policy", "template"],
+      "description": "Type of knowledge article"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "published", "archived", "deprecated"],
+      "description": "Publication status"
+    },
+    "domain": {
+      "type": ["string", "null"],
+      "description": "Domain this article belongs to"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "Brief summary of the article"
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Full article content in Markdown"
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Article author (email or name)"
+    },
+    "reviewers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of reviewers"
+    },
+    "last_reviewed": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Date of last review"
+    },
+    "review_frequency": {
+      "type": ["string", "null"],
+      "enum": ["monthly", "quarterly", "yearly", null],
+      "description": "How often the article should be reviewed"
+    },
+    "audience": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Target audience for the article"
+    },
+    "skill_level": {
+      "type": ["string", "null"],
+      "enum": ["beginner", "intermediate", "advanced", null],
+      "description": "Required skill level"
+    },
+    "linked_assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["asset_type", "asset_id", "asset_name"],
+        "properties": {
+          "asset_type": {
+            "type": "string",
+            "enum": ["odcs", "odps", "cads", "relationship"]
+          },
+          "asset_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "asset_name": {
+            "type": "string"
+          },
+          "relationship": {
+            "type": "string",
+            "enum": ["affects", "implements", "deprecates"]
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "Assets referenced by this article"
+    },
+    "linked_decisions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "description": "UUIDs of related decisions"
+    },
+    "related_articles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["article_id", "article_number", "title", "relationship"],
+        "properties": {
+          "article_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "article_number": {
+            "type": "string",
+            "pattern": "^KB-[0-9]{4}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "relationship": {
+            "type": "string",
+            "enum": ["related", "prerequisite", "supersedes"]
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "Related articles"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags for categorization"
+    },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Additional notes"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Creation timestamp"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last modification timestamp"
+    }
+  },
+  "additionalProperties": false
+}

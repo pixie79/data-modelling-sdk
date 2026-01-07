@@ -2,8 +2,9 @@
 
 use crate::cli::error::CliError;
 use crate::cli::validation::{
-    validate_avro, validate_cads, validate_json_schema, validate_odcl, validate_odcs,
-    validate_odps, validate_openapi, validate_protobuf, validate_sql,
+    validate_avro, validate_cads, validate_decision, validate_decisions_index,
+    validate_json_schema, validate_knowledge, validate_knowledge_index, validate_odcl,
+    validate_odcs, validate_odps, validate_openapi, validate_protobuf, validate_sql,
 };
 use std::io::Read;
 use std::path::PathBuf;
@@ -38,6 +39,10 @@ pub fn handle_validate(format: &str, input: &str) -> Result<(), CliError> {
         "avro" => validate_avro(&content)?,
         "json-schema" => validate_json_schema(&content)?,
         "sql" => validate_sql(&content)?,
+        "decision" => validate_decision(&content)?,
+        "knowledge" => validate_knowledge(&content)?,
+        "decisions-index" => validate_decisions_index(&content)?,
+        "knowledge-index" => validate_knowledge_index(&content)?,
         _ => {
             return Err(CliError::InvalidArgument(format!(
                 "Unknown format: {}",

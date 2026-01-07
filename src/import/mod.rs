@@ -6,14 +6,18 @@
 //! - JSON Schema
 //! - AVRO
 //! - Protobuf
+//! - Decision (MADR-compliant decision records)
+//! - Knowledge (Knowledge Base articles)
 
 pub mod avro;
 #[cfg(feature = "bpmn")]
 pub mod bpmn;
 pub mod cads;
+pub mod decision;
 #[cfg(feature = "dmn")]
 pub mod dmn;
 pub mod json_schema;
+pub mod knowledge;
 pub mod odcl;
 pub mod odcs;
 pub mod odcs_shared;
@@ -237,7 +241,9 @@ impl Default for ColumnData {
 // Re-export for convenience
 pub use avro::AvroImporter;
 pub use cads::CADSImporter;
+pub use decision::DecisionImporter;
 pub use json_schema::JSONSchemaImporter;
+pub use knowledge::KnowledgeImporter;
 pub use odcl::ODCLImporter;
 pub use odcs::ODCSImporter;
 pub use odcs_shared::ParserError;

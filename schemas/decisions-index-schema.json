@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/pixie79/data-modelling-sdk/schemas/decisions-index-schema.json",
+  "title": "Decision Index",
+  "description": "Schema for the decisions.yaml index file",
+  "type": "object",
+  "required": ["schema_version", "decisions", "next_number"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Schema version (e.g., '1.0')"
+    },
+    "last_updated": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Last update timestamp"
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["number", "id", "title", "status", "category", "file"],
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Decision number"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Decision UUID"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Decision title"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["proposed", "accepted", "deprecated", "superseded"],
+            "description": "Decision status"
+          },
+          "category": {
+            "type": "string",
+            "enum": ["architecture", "datadesign", "workflow", "model", "governance", "security", "performance", "compliance", "infrastructure", "tooling"],
+            "description": "Decision category"
+          },
+          "domain": {
+            "type": ["string", "null"],
+            "description": "Domain the decision belongs to"
+          },
+          "file": {
+            "type": "string",
+            "pattern": ".*\\.madr\\.yaml$",
+            "description": "Filename of the decision YAML file"
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "List of decision entries"
+    },
+    "next_number": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Next available decision number"
+    }
+  },
+  "additionalProperties": false
+}

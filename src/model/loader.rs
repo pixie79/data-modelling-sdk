@@ -18,16 +18,20 @@
 
 #[cfg(feature = "bpmn")]
 use crate::import::bpmn::BPMNImporter;
+use crate::import::decision::DecisionImporter;
 #[cfg(feature = "dmn")]
 use crate::import::dmn::DMNImporter;
+use crate::import::knowledge::KnowledgeImporter;
 #[cfg(feature = "openapi")]
 use crate::import::openapi::OpenAPIImporter;
 use crate::import::{cads::CADSImporter, odcs::ODCSImporter, odps::ODPSImporter};
 #[cfg(feature = "bpmn")]
 use crate::models::bpmn::BPMNModel;
+use crate::models::decision::{Decision, DecisionIndex};
 #[cfg(feature = "dmn")]
 use crate::models::dmn::DMNModel;
 use crate::models::domain_config::DomainConfig;
+use crate::models::knowledge::{KnowledgeArticle, KnowledgeIndex};
 #[cfg(feature = "openapi")]
 use crate::models::openapi::{OpenAPIFormat, OpenAPIModel};
 use crate::models::workspace::{AssetType, Workspace};
@@ -915,6 +919,278 @@ impl<B: StorageBackend> ModelLoader<B> {
         )))
     }
 
+    // ==================== Decision and Knowledge Loading ====================
+
+    /// Load all decisions from workspace using flat file structure
+    ///
+    /// Loads all `.madr.yaml` files from the workspace directory and parses them
+    /// into Decision structs using DecisionImporter.
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    ///
+    /// # Returns
+    ///
+    /// A DecisionLoadResult containing loaded decisions and any errors encountered
+    pub async fn load_decisions(
+        &self,
+        workspace_path: &str,
+    ) -> Result<DecisionLoadResult, StorageError> {
+        let mut decisions = Vec::new();
+        let mut load_errors = Vec::new();
+
+        let files = self.storage.list_files(workspace_path).await?;
+        let importer = DecisionImporter;
+
+        for file_name in files {
+            if let Some(AssetType::Decision) = AssetType::from_filename(&file_name) {
+                let file_path = format!("{}/{}", workspace_path, file_name);
+                match self.storage.read_file(&file_path).await {
+                    Ok(content) => {
+                        let yaml_content = match String::from_utf8(content) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                load_errors.push(DecisionLoadError {
+                                    file_path: file_path.clone(),
+                                    error: format!("Invalid UTF-8: {}", e),
+                                });
+                                continue;
+                            }
+                        };
+
+                        match importer.import(&yaml_content) {
+                            Ok(decision) => {
+                                decisions.push(decision);
+                            }
+                            Err(e) => {
+                                load_errors.push(DecisionLoadError {
+                                    file_path: file_path.clone(),
+                                    error: format!("Failed to import decision: {}", e),
+                                });
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        load_errors.push(DecisionLoadError {
+                            file_path: file_path.clone(),
+                            error: format!("Failed to read file: {}", e),
+                        });
+                    }
+                }
+            }
+        }
+
+        info!(
+            "Loaded {} decisions ({} errors) from workspace {}",
+            decisions.len(),
+            load_errors.len(),
+            workspace_path
+        );
+
+        Ok(DecisionLoadResult {
+            decisions,
+            errors: load_errors,
+        })
+    }
+
+    /// Load the decision index from decisions.yaml
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    ///
+    /// # Returns
+    ///
+    /// The DecisionIndex if found, or None if decisions.yaml doesn't exist
+    pub async fn load_decision_index(
+        &self,
+        workspace_path: &str,
+    ) -> Result<Option<DecisionIndex>, StorageError> {
+        let index_file = format!("{}/decisions.yaml", workspace_path);
+
+        if !self.storage.file_exists(&index_file).await? {
+            return Ok(None);
+        }
+
+        let content = self.storage.read_file(&index_file).await?;
+        let yaml_content = String::from_utf8(content)
+            .map_err(|e| StorageError::SerializationError(format!("Invalid UTF-8: {}", e)))?;
+
+        let importer = DecisionImporter;
+        let index = importer.import_index(&yaml_content).map_err(|e| {
+            StorageError::SerializationError(format!("Failed to parse decisions.yaml: {}", e))
+        })?;
+
+        Ok(Some(index))
+    }
+
+    /// Load all knowledge articles from workspace using flat file structure
+    ///
+    /// Loads all `.kb.yaml` files from the workspace directory and parses them
+    /// into KnowledgeArticle structs using KnowledgeImporter.
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    ///
+    /// # Returns
+    ///
+    /// A KnowledgeLoadResult containing loaded articles and any errors encountered
+    pub async fn load_knowledge(
+        &self,
+        workspace_path: &str,
+    ) -> Result<KnowledgeLoadResult, StorageError> {
+        let mut articles = Vec::new();
+        let mut load_errors = Vec::new();
+
+        let files = self.storage.list_files(workspace_path).await?;
+        let importer = KnowledgeImporter;
+
+        for file_name in files {
+            if let Some(AssetType::Knowledge) = AssetType::from_filename(&file_name) {
+                let file_path = format!("{}/{}", workspace_path, file_name);
+                match self.storage.read_file(&file_path).await {
+                    Ok(content) => {
+                        let yaml_content = match String::from_utf8(content) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                load_errors.push(KnowledgeLoadError {
+                                    file_path: file_path.clone(),
+                                    error: format!("Invalid UTF-8: {}", e),
+                                });
+                                continue;
+                            }
+                        };
+
+                        match importer.import(&yaml_content) {
+                            Ok(article) => {
+                                articles.push(article);
+                            }
+                            Err(e) => {
+                                load_errors.push(KnowledgeLoadError {
+                                    file_path: file_path.clone(),
+                                    error: format!("Failed to import knowledge article: {}", e),
+                                });
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        load_errors.push(KnowledgeLoadError {
+                            file_path: file_path.clone(),
+                            error: format!("Failed to read file: {}", e),
+                        });
+                    }
+                }
+            }
+        }
+
+        info!(
+            "Loaded {} knowledge articles ({} errors) from workspace {}",
+            articles.len(),
+            load_errors.len(),
+            workspace_path
+        );
+
+        Ok(KnowledgeLoadResult {
+            articles,
+            errors: load_errors,
+        })
+    }
+
+    /// Load the knowledge index from knowledge.yaml
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    ///
+    /// # Returns
+    ///
+    /// The KnowledgeIndex if found, or None if knowledge.yaml doesn't exist
+    pub async fn load_knowledge_index(
+        &self,
+        workspace_path: &str,
+    ) -> Result<Option<KnowledgeIndex>, StorageError> {
+        let index_file = format!("{}/knowledge.yaml", workspace_path);
+
+        if !self.storage.file_exists(&index_file).await? {
+            return Ok(None);
+        }
+
+        let content = self.storage.read_file(&index_file).await?;
+        let yaml_content = String::from_utf8(content)
+            .map_err(|e| StorageError::SerializationError(format!("Invalid UTF-8: {}", e)))?;
+
+        let importer = KnowledgeImporter;
+        let index = importer.import_index(&yaml_content).map_err(|e| {
+            StorageError::SerializationError(format!("Failed to parse knowledge.yaml: {}", e))
+        })?;
+
+        Ok(Some(index))
+    }
+
+    /// Load knowledge articles by domain
+    ///
+    /// Filters knowledge articles by their domain field.
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    /// * `domain` - Domain name to filter by
+    ///
+    /// # Returns
+    ///
+    /// A KnowledgeLoadResult containing matching articles and any errors encountered
+    pub async fn load_knowledge_by_domain(
+        &self,
+        workspace_path: &str,
+        domain: &str,
+    ) -> Result<KnowledgeLoadResult, StorageError> {
+        let result = self.load_knowledge(workspace_path).await?;
+
+        let filtered_articles: Vec<_> = result
+            .articles
+            .into_iter()
+            .filter(|article| article.domain.as_deref() == Some(domain))
+            .collect();
+
+        Ok(KnowledgeLoadResult {
+            articles: filtered_articles,
+            errors: result.errors,
+        })
+    }
+
+    /// Load decisions by domain
+    ///
+    /// Filters decisions by their domain field.
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    /// * `domain` - Domain name to filter by
+    ///
+    /// # Returns
+    ///
+    /// A DecisionLoadResult containing matching decisions and any errors encountered
+    pub async fn load_decisions_by_domain(
+        &self,
+        workspace_path: &str,
+        domain: &str,
+    ) -> Result<DecisionLoadResult, StorageError> {
+        let result = self.load_decisions(workspace_path).await?;
+
+        let filtered_decisions: Vec<_> = result
+            .decisions
+            .into_iter()
+            .filter(|decision| decision.domain.as_deref() == Some(domain))
+            .collect();
+
+        Ok(DecisionLoadResult {
+            decisions: filtered_decisions,
+            errors: result.errors,
+        })
+    }
+
     // ==================== Workspace and Domain Config Loading ====================
 
     /// Load workspace configuration from workspace.yaml
@@ -1126,4 +1402,40 @@ pub struct DomainLoadResult {
     pub tables: HashMap<Uuid, Table>,
     pub odps_products: HashMap<Uuid, ODPSDataProduct>,
     pub cads_assets: HashMap<Uuid, CADSAsset>,
+}
+
+/// Result of loading decisions
+#[derive(Debug)]
+pub struct DecisionLoadResult {
+    /// Successfully loaded decisions
+    pub decisions: Vec<Decision>,
+    /// Errors encountered during loading
+    pub errors: Vec<DecisionLoadError>,
+}
+
+/// Error encountered while loading a decision
+#[derive(Debug, Clone)]
+pub struct DecisionLoadError {
+    /// Path to the file that failed to load
+    pub file_path: String,
+    /// Error message
+    pub error: String,
+}
+
+/// Result of loading knowledge articles
+#[derive(Debug)]
+pub struct KnowledgeLoadResult {
+    /// Successfully loaded knowledge articles
+    pub articles: Vec<KnowledgeArticle>,
+    /// Errors encountered during loading
+    pub errors: Vec<KnowledgeLoadError>,
+}
+
+/// Error encountered while loading a knowledge article
+#[derive(Debug, Clone)]
+pub struct KnowledgeLoadError {
+    /// Path to the file that failed to load
+    pub file_path: String,
+    /// Error message
+    pub error: String,
 }

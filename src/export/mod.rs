@@ -7,14 +7,20 @@
 //! - Protobuf
 //! - ODCS (Open Data Contract Standard) v3.1.0
 //! - PNG
+//! - Decision (MADR-compliant decision records)
+//! - Knowledge (Knowledge Base articles)
+//! - Markdown (for GitHub readability)
 
 pub mod avro;
 #[cfg(feature = "bpmn")]
 pub mod bpmn;
 pub mod cads;
+pub mod decision;
 #[cfg(feature = "dmn")]
 pub mod dmn;
 pub mod json_schema;
+pub mod knowledge;
+pub mod markdown;
 pub mod odcl;
 pub mod odcs;
 pub mod odps;
@@ -73,9 +79,12 @@ pub use avro::AvroExporter;
 #[cfg(feature = "bpmn")]
 pub use bpmn::BPMNExporter;
 pub use cads::CADSExporter;
+pub use decision::DecisionExporter;
 #[cfg(feature = "dmn")]
 pub use dmn::DMNExporter;
 pub use json_schema::JSONSchemaExporter;
+pub use knowledge::KnowledgeExporter;
+pub use markdown::MarkdownExporter;
 pub use odcl::ODCLExporter;
 pub use odcs::ODCSExporter;
 pub use odps::ODPSExporter;

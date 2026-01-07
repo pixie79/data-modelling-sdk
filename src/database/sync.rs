@@ -21,6 +21,8 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use super::{DatabaseBackend, DatabaseError, DatabaseResult, SyncStatus};
+use crate::models::decision::Decision;
+use crate::models::knowledge::KnowledgeArticle;
 use crate::models::workspace::AssetType;
 use crate::models::{Domain, Relationship, Table, Workspace};
 
@@ -37,6 +39,10 @@ pub struct SyncResult {
     pub relationships_synced: usize,
     /// Number of domains synced
     pub domains_synced: usize,
+    /// Number of decisions synced
+    pub decisions_synced: usize,
+    /// Number of knowledge articles synced
+    pub knowledge_synced: usize,
     /// Files that were skipped (unchanged)
     pub files_skipped: usize,
     /// Errors encountered during sync
@@ -54,6 +60,8 @@ impl SyncResult {
             columns_synced: 0,
             relationships_synced: 0,
             domains_synced: 0,
+            decisions_synced: 0,
+            knowledge_synced: 0,
             files_skipped: 0,
             errors: Vec::new(),
             duration_ms: 0,
@@ -67,7 +75,11 @@ impl SyncResult {
 
     /// Get total items synced
     pub fn total_synced(&self) -> usize {
-        self.tables_synced + self.relationships_synced + self.domains_synced
+        self.tables_synced
+            + self.relationships_synced
+            + self.domains_synced
+            + self.decisions_synced
+            + self.knowledge_synced
     }
 }
 
@@ -178,6 +190,91 @@ impl<B: DatabaseBackend> SyncEngine<B> {
         Ok(result)
     }
 
+    /// Sync a workspace with decisions and knowledge articles
+    ///
+    /// Extended version of sync_workspace that includes DDL and KB sync.
+    ///
+    /// # Arguments
+    /// * `workspace` - Workspace metadata
+    /// * `tables` - Tables to sync
+    /// * `relationships` - Relationships to sync
+    /// * `domains` - Domains to sync
+    /// * `decisions` - Decisions to sync
+    /// * `knowledge` - Knowledge articles to sync
+    /// * `force` - If true, ignore change detection and sync everything
+    ///
+    /// # Returns
+    /// Sync result with counts and any errors
+    #[allow(clippy::too_many_arguments)]
+    pub async fn sync_workspace_full(
+        &self,
+        workspace: &Workspace,
+        tables: &[Table],
+        relationships: &[Relationship],
+        domains: &[Domain],
+        decisions: &[Decision],
+        knowledge: &[KnowledgeArticle],
+        force: bool,
+    ) -> DatabaseResult<SyncResult> {
+        let start = std::time::Instant::now();
+
+        // First sync the basic workspace data
+        let mut result = self
+            .sync_workspace(workspace, tables, relationships, domains, force)
+            .await?;
+
+        // Sync decisions
+        if !decisions.is_empty() || force {
+            match self.backend.sync_decisions(workspace.id, decisions).await {
+                Ok(count) => result.decisions_synced = count,
+                Err(e) => result.errors.push(format!("Decision sync error: {}", e)),
+            }
+        }
+
+        // Sync knowledge articles
+        if !knowledge.is_empty() || force {
+            match self.backend.sync_knowledge(workspace.id, knowledge).await {
+                Ok(count) => result.knowledge_synced = count,
+                Err(e) => result.errors.push(format!("Knowledge sync error: {}", e)),
+            }
+        }
+
+        result.duration_ms = start.elapsed().as_millis() as u64;
+        Ok(result)
+    }
+
+    /// Sync only decisions for a workspace
+    ///
+    /// # Arguments
+    /// * `workspace_id` - Workspace UUID
+    /// * `decisions` - Decisions to sync
+    ///
+    /// # Returns
+    /// Number of decisions synced
+    pub async fn sync_decisions(
+        &self,
+        workspace_id: Uuid,
+        decisions: &[Decision],
+    ) -> DatabaseResult<usize> {
+        self.backend.sync_decisions(workspace_id, decisions).await
+    }
+
+    /// Sync only knowledge articles for a workspace
+    ///
+    /// # Arguments
+    /// * `workspace_id` - Workspace UUID
+    /// * `articles` - Knowledge articles to sync
+    ///
+    /// # Returns
+    /// Number of articles synced
+    pub async fn sync_knowledge(
+        &self,
+        workspace_id: Uuid,
+        articles: &[KnowledgeArticle],
+    ) -> DatabaseResult<usize> {
+        self.backend.sync_knowledge(workspace_id, articles).await
+    }
+
     /// Sync tables with change detection
     ///
     /// Only syncs tables whose YAML file has changed since last sync.
@@ -256,6 +353,48 @@ impl<B: DatabaseBackend> SyncEngine<B> {
         let domains = self.backend.export_domains(workspace_id).await?;
 
         Ok((workspace, tables, relationships, domains))
+    }
+
+    /// Export workspace from database to models including decisions and knowledge
+    pub async fn export_workspace_full(
+        &self,
+        workspace_id: Uuid,
+    ) -> DatabaseResult<(
+        Option<Workspace>,
+        Vec<Table>,
+        Vec<Relationship>,
+        Vec<Domain>,
+        Vec<Decision>,
+        Vec<KnowledgeArticle>,
+    )> {
+        let workspace = self.backend.get_workspace(workspace_id).await?;
+        let tables = self.backend.export_tables(workspace_id).await?;
+        let relationships = self.backend.export_relationships(workspace_id).await?;
+        let domains = self.backend.export_domains(workspace_id).await?;
+        let decisions = self.backend.export_decisions(workspace_id).await?;
+        let knowledge = self.backend.export_knowledge(workspace_id).await?;
+
+        Ok((
+            workspace,
+            tables,
+            relationships,
+            domains,
+            decisions,
+            knowledge,
+        ))
+    }
+
+    /// Export only decisions from database
+    pub async fn export_decisions(&self, workspace_id: Uuid) -> DatabaseResult<Vec<Decision>> {
+        self.backend.export_decisions(workspace_id).await
+    }
+
+    /// Export only knowledge articles from database
+    pub async fn export_knowledge(
+        &self,
+        workspace_id: Uuid,
+    ) -> DatabaseResult<Vec<KnowledgeArticle>> {
+        self.backend.export_knowledge(workspace_id).await
     }
 
     /// Get sync status for a workspace

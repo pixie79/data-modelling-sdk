@@ -11,11 +11,16 @@
 //!     - `{name}.cads.yaml` - CADS asset files
 //!   - `tables/` - Legacy: tables not in any domain (backward compatibility)
 
-use crate::export::{cads::CADSExporter, odcs::ODCSExporter, odps::ODPSExporter};
+use crate::export::{
+    cads::CADSExporter, decision::DecisionExporter, knowledge::KnowledgeExporter,
+    markdown::MarkdownExporter, odcs::ODCSExporter, odps::ODPSExporter,
+};
 #[cfg(feature = "bpmn")]
 use crate::models::bpmn::BPMNModel;
+use crate::models::decision::{Decision, DecisionIndex};
 #[cfg(feature = "dmn")]
 use crate::models::dmn::DMNModel;
+use crate::models::knowledge::{KnowledgeArticle, KnowledgeIndex};
 #[cfg(feature = "openapi")]
 use crate::models::openapi::{OpenAPIFormat, OpenAPIModel};
 use crate::models::{cads::CADSAsset, domain::Domain, odps::ODPSDataProduct, table::Table};
@@ -357,6 +362,315 @@ impl<B: StorageBackend> ModelSaver<B> {
 
         info!("Saved OpenAPI spec '{}' to {}", model.name, model_file_path);
         Ok(())
+    }
+
+    // ==================== Decision and Knowledge Saving ====================
+
+    /// Save a decision to storage
+    ///
+    /// Saves the decision as a YAML file using the naming convention:
+    /// `{workspace}_{domain}_adr-{number}.madr.yaml` (with domain)
+    /// or `{workspace}_adr-{number}.madr.yaml` (without domain)
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    /// * `workspace_name` - Name of the workspace for filename generation
+    /// * `decision` - The decision to save
+    pub async fn save_decision(
+        &self,
+        workspace_path: &str,
+        workspace_name: &str,
+        decision: &Decision,
+    ) -> Result<String, StorageError> {
+        let sanitized_workspace = sanitize_filename(workspace_name);
+        let number_str = format!("{:04}", decision.number);
+
+        let file_name = if let Some(ref domain) = decision.domain {
+            let sanitized_domain = sanitize_filename(domain);
+            format!(
+                "{}_{}_adr-{}.madr.yaml",
+                sanitized_workspace, sanitized_domain, number_str
+            )
+        } else {
+            format!("{}_adr-{}.madr.yaml", sanitized_workspace, number_str)
+        };
+
+        let file_path = format!("{}/{}", workspace_path, file_name);
+
+        let exporter = DecisionExporter;
+        let yaml_content = exporter.export(decision).map_err(|e| {
+            StorageError::SerializationError(format!("Failed to export decision: {}", e))
+        })?;
+
+        self.storage
+            .write_file(&file_path, yaml_content.as_bytes())
+            .await?;
+
+        info!(
+            "Saved decision '{}' ({}) to {}",
+            decision.title, decision.number, file_path
+        );
+
+        Ok(file_path)
+    }
+
+    /// Save the decision index to decisions.yaml
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    /// * `index` - The decision index to save
+    pub async fn save_decision_index(
+        &self,
+        workspace_path: &str,
+        index: &DecisionIndex,
+    ) -> Result<(), StorageError> {
+        let file_path = format!("{}/decisions.yaml", workspace_path);
+
+        let exporter = DecisionExporter;
+        let yaml_content = exporter.export_index(index).map_err(|e| {
+            StorageError::SerializationError(format!("Failed to export decision index: {}", e))
+        })?;
+
+        self.storage
+            .write_file(&file_path, yaml_content.as_bytes())
+            .await?;
+
+        info!(
+            "Saved decision index with {} entries to {}",
+            index.decisions.len(),
+            file_path
+        );
+
+        Ok(())
+    }
+
+    /// Save a knowledge article to storage
+    ///
+    /// Saves the article as a YAML file using the naming convention:
+    /// `{workspace}_{domain}_kb-{number}.kb.yaml` (with domain)
+    /// or `{workspace}_kb-{number}.kb.yaml` (without domain)
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    /// * `workspace_name` - Name of the workspace for filename generation
+    /// * `article` - The knowledge article to save
+    pub async fn save_knowledge(
+        &self,
+        workspace_path: &str,
+        workspace_name: &str,
+        article: &KnowledgeArticle,
+    ) -> Result<String, StorageError> {
+        let sanitized_workspace = sanitize_filename(workspace_name);
+        // Extract the numeric part from "KB-0001" format
+        let number_str = article
+            .number
+            .strip_prefix("KB-")
+            .unwrap_or(&article.number)
+            .to_lowercase();
+
+        let file_name = if let Some(ref domain) = article.domain {
+            let sanitized_domain = sanitize_filename(domain);
+            format!(
+                "{}_{}_kb-{}.kb.yaml",
+                sanitized_workspace, sanitized_domain, number_str
+            )
+        } else {
+            format!("{}_kb-{}.kb.yaml", sanitized_workspace, number_str)
+        };
+
+        let file_path = format!("{}/{}", workspace_path, file_name);
+
+        let exporter = KnowledgeExporter;
+        let yaml_content = exporter.export(article).map_err(|e| {
+            StorageError::SerializationError(format!("Failed to export knowledge article: {}", e))
+        })?;
+
+        self.storage
+            .write_file(&file_path, yaml_content.as_bytes())
+            .await?;
+
+        info!(
+            "Saved knowledge article '{}' ({}) to {}",
+            article.title, article.number, file_path
+        );
+
+        Ok(file_path)
+    }
+
+    /// Save the knowledge index to knowledge.yaml
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    /// * `index` - The knowledge index to save
+    pub async fn save_knowledge_index(
+        &self,
+        workspace_path: &str,
+        index: &KnowledgeIndex,
+    ) -> Result<(), StorageError> {
+        let file_path = format!("{}/knowledge.yaml", workspace_path);
+
+        let exporter = KnowledgeExporter;
+        let yaml_content = exporter.export_index(index).map_err(|e| {
+            StorageError::SerializationError(format!("Failed to export knowledge index: {}", e))
+        })?;
+
+        self.storage
+            .write_file(&file_path, yaml_content.as_bytes())
+            .await?;
+
+        info!(
+            "Saved knowledge index with {} entries to {}",
+            index.articles.len(),
+            file_path
+        );
+
+        Ok(())
+    }
+
+    /// Export a decision to Markdown
+    ///
+    /// Saves the decision as a Markdown file in the decisions/ subdirectory
+    /// using the filename format: `ADR-NNNN-slug.md`
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    /// * `decision` - The decision to export
+    pub async fn export_decision_markdown(
+        &self,
+        workspace_path: &str,
+        decision: &Decision,
+    ) -> Result<String, StorageError> {
+        let decisions_dir = format!("{}/decisions", workspace_path);
+
+        // Ensure decisions directory exists
+        if !self.storage.dir_exists(&decisions_dir).await? {
+            self.storage.create_dir(&decisions_dir).await?;
+        }
+
+        // Use the Decision's built-in markdown_filename method
+        let file_name = decision.markdown_filename();
+        let file_path = format!("{}/{}", decisions_dir, file_name);
+
+        let exporter = MarkdownExporter;
+        let markdown_content = exporter.export_decision(decision).map_err(|e| {
+            StorageError::SerializationError(format!(
+                "Failed to export decision to Markdown: {}",
+                e
+            ))
+        })?;
+
+        self.storage
+            .write_file(&file_path, markdown_content.as_bytes())
+            .await?;
+
+        info!(
+            "Exported decision '{}' to Markdown: {}",
+            decision.number, file_path
+        );
+
+        Ok(file_path)
+    }
+
+    /// Export a knowledge article to Markdown
+    ///
+    /// Saves the article as a Markdown file in the knowledge/ subdirectory
+    /// using the filename format: `KB-NNNN-slug.md`
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    /// * `article` - The knowledge article to export
+    pub async fn export_knowledge_markdown(
+        &self,
+        workspace_path: &str,
+        article: &KnowledgeArticle,
+    ) -> Result<String, StorageError> {
+        let knowledge_dir = format!("{}/knowledge", workspace_path);
+
+        // Ensure knowledge directory exists
+        if !self.storage.dir_exists(&knowledge_dir).await? {
+            self.storage.create_dir(&knowledge_dir).await?;
+        }
+
+        // Use the KnowledgeArticle's built-in markdown_filename method
+        let file_name = article.markdown_filename();
+        let file_path = format!("{}/{}", knowledge_dir, file_name);
+
+        let exporter = MarkdownExporter;
+        let markdown_content = exporter.export_knowledge(article).map_err(|e| {
+            StorageError::SerializationError(format!(
+                "Failed to export knowledge article to Markdown: {}",
+                e
+            ))
+        })?;
+
+        self.storage
+            .write_file(&file_path, markdown_content.as_bytes())
+            .await?;
+
+        info!(
+            "Exported knowledge article '{}' to Markdown: {}",
+            article.number, file_path
+        );
+
+        Ok(file_path)
+    }
+
+    /// Export all decisions to Markdown
+    ///
+    /// Exports all provided decisions to the decisions/ subdirectory
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    /// * `decisions` - The decisions to export
+    ///
+    /// # Returns
+    ///
+    /// The number of decisions exported
+    pub async fn export_all_decisions_markdown(
+        &self,
+        workspace_path: &str,
+        decisions: &[Decision],
+    ) -> Result<usize, StorageError> {
+        let mut count = 0;
+        for decision in decisions {
+            self.export_decision_markdown(workspace_path, decision)
+                .await?;
+            count += 1;
+        }
+        Ok(count)
+    }
+
+    /// Export all knowledge articles to Markdown
+    ///
+    /// Exports all provided articles to the knowledge/ subdirectory
+    ///
+    /// # Arguments
+    ///
+    /// * `workspace_path` - Path to the workspace directory
+    /// * `articles` - The knowledge articles to export
+    ///
+    /// # Returns
+    ///
+    /// The number of articles exported
+    pub async fn export_all_knowledge_markdown(
+        &self,
+        workspace_path: &str,
+        articles: &[KnowledgeArticle],
+    ) -> Result<usize, StorageError> {
+        let mut count = 0;
+        for article in articles {
+            self.export_knowledge_markdown(workspace_path, article)
+                .await?;
+            count += 1;
+        }
+        Ok(count)
     }
 }
 

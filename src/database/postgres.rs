@@ -701,6 +701,8 @@ impl DatabaseBackend for PostgresBackend {
             column_count,
             relationship_count,
             domain_count,
+            decision_count: 0,  // TODO: query decisions table when implemented
+            knowledge_count: 0, // TODO: query knowledge_articles table when implemented
             is_stale: false,
             pending_sync_count: 0,
         })
@@ -874,5 +876,39 @@ impl DatabaseBackend for PostgresBackend {
     async fn close(&self) -> DatabaseResult<()> {
         // PostgreSQL connection is closed when client is dropped
         Ok(())
+    }
+
+    async fn sync_decisions(
+        &self,
+        _workspace_id: Uuid,
+        _decisions: &[crate::models::decision::Decision],
+    ) -> DatabaseResult<usize> {
+        // TODO: Implement decision sync when decisions table is created
+        Ok(0)
+    }
+
+    async fn sync_knowledge(
+        &self,
+        _workspace_id: Uuid,
+        _articles: &[crate::models::knowledge::KnowledgeArticle],
+    ) -> DatabaseResult<usize> {
+        // TODO: Implement knowledge sync when knowledge_articles table is created
+        Ok(0)
+    }
+
+    async fn export_decisions(
+        &self,
+        _workspace_id: Uuid,
+    ) -> DatabaseResult<Vec<crate::models::decision::Decision>> {
+        // TODO: Implement decision export when decisions table is created
+        Ok(Vec::new())
+    }
+
+    async fn export_knowledge(
+        &self,
+        _workspace_id: Uuid,
+    ) -> DatabaseResult<Vec<crate::models::knowledge::KnowledgeArticle>> {
+        // TODO: Implement knowledge export when knowledge_articles table is created
+        Ok(Vec::new())
     }
 }
