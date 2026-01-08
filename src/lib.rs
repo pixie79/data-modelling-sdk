@@ -282,8 +282,29 @@ mod wasm {
 
                 TableData {
                     table_index: table_data.table_index,
-                    name: table_data.name,
+                    id: table_data.id.clone(),
+                    name: table_data.name.clone(),
                     columns: all_columns,
+                    api_version: table_data.api_version.clone(),
+                    version: table_data.version.clone(),
+                    status: table_data.status.clone(),
+                    kind: table_data.kind.clone(),
+                    domain: table_data.domain.clone(),
+                    data_product: table_data.data_product.clone(),
+                    tenant: table_data.tenant.clone(),
+                    description: table_data.description.clone(),
+                    servers: table_data.servers.clone(),
+                    team: table_data.team.clone(),
+                    support: table_data.support.clone(),
+                    roles: table_data.roles.clone(),
+                    sla_properties: table_data.sla_properties.clone(),
+                    quality: table_data.quality.clone(),
+                    price: table_data.price.clone(),
+                    tags: table_data.tags.clone(),
+                    custom_properties: table_data.custom_properties.clone(),
+                    authoritative_definitions: table_data.authoritative_definitions.clone(),
+                    contract_created_ts: table_data.contract_created_ts.clone(),
+                    odcs_metadata: table_data.odcs_metadata.clone(),
                 }
             })
             .collect();
@@ -1613,7 +1634,6 @@ mod wasm {
     #[wasm_bindgen]
     pub fn create_workspace(name: &str, owner_id: &str) -> Result<String, JsValue> {
         use crate::models::workspace::Workspace;
-        use chrono::Utc;
         use uuid::Uuid;
 
         let owner_uuid =

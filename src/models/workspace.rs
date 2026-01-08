@@ -194,6 +194,14 @@ pub struct SystemReference {
     /// Optional description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Optional array of table UUIDs that belong to this system.
+    /// When present, provides explicit table-to-system mapping without requiring parsing of individual ODCS files.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub table_ids: Vec<Uuid>,
+    /// Optional array of compute asset (CADS) UUIDs that belong to this system.
+    /// When present, provides explicit asset-to-system mapping.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub asset_ids: Vec<Uuid>,
 }
 
 /// Workspace - Top-level container for domains, assets, and relationships
@@ -340,6 +348,8 @@ impl Workspace {
                 id: system_id,
                 name: system_name,
                 description,
+                table_ids: Vec::new(),
+                asset_ids: Vec::new(),
             });
             self.last_modified_at = Utc::now();
             return true;

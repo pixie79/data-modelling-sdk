@@ -68,13 +68,103 @@ pub enum ImportError {
     OpenAPIParseError(String),
 }
 
-/// Table data from import
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+/// Table data from import - preserves all ODCS v3.1.0 contract-level fields
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TableData {
+    /// Index of this table in the import result
     pub table_index: usize,
+
+    // === ODCS Contract Identity Fields ===
+    /// Table/Contract UUID from ODCS `id` field (preserved from source file)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// Contract/table name (ODCS: name)
     pub name: Option<String>,
+    /// ODCS API version (e.g., "v3.1.0")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_version: Option<String>,
+    /// Contract version (ODCS: version)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    /// Contract status (ODCS: status) - e.g., "draft", "active", "deprecated"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// Contract kind (ODCS: kind) - typically "DataContract"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+
+    // === Domain & Organization ===
+    /// Domain name (ODCS: domain)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub domain: Option<String>,
+    /// Data product name (ODCS: dataProduct)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data_product: Option<String>,
+    /// Tenant identifier (ODCS: tenant)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant: Option<String>,
+
+    // === Description (ODCS description object) ===
+    /// High-level description object containing usage, purpose, limitations
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<serde_json::Value>,
+
+    // === Schema/Columns ===
+    /// Column definitions (from ODCS schema.properties)
     pub columns: Vec<ColumnData>,
-    // Additional fields can be added as needed
+
+    // === Server Configuration ===
+    /// Server definitions (ODCS: servers)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub servers: Vec<serde_json::Value>,
+
+    // === Team & Support ===
+    /// Team information (ODCS: team)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub team: Option<serde_json::Value>,
+    /// Support information (ODCS: support)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub support: Option<serde_json::Value>,
+
+    // === Roles & Access ===
+    /// Role definitions (ODCS: roles)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub roles: Vec<serde_json::Value>,
+
+    // === SLA & Quality ===
+    /// SLA properties (ODCS: slaProperties)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sla_properties: Vec<serde_json::Value>,
+    /// Contract-level quality rules
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub quality: Vec<std::collections::HashMap<String, serde_json::Value>>,
+
+    // === Pricing ===
+    /// Pricing information (ODCS: price)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price: Option<serde_json::Value>,
+
+    // === Tags & Custom Properties ===
+    /// Contract-level tags (ODCS: tags)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// Custom properties (ODCS: customProperties)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom_properties: Vec<serde_json::Value>,
+    /// Authoritative definitions (ODCS: authoritativeDefinitions)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub authoritative_definitions: Vec<serde_json::Value>,
+
+    // === Timestamps ===
+    /// Contract creation timestamp (ODCS: contractCreatedTs)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contract_created_ts: Option<String>,
+
+    // === Legacy/Metadata Storage ===
+    /// Additional ODCS metadata not captured in specific fields (for backward compatibility)
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub odcs_metadata: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// Column data from import - mirrors Column struct exactly to preserve all ODCS v3.1.0 fields

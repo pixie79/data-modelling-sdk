@@ -1465,8 +1465,10 @@ fn handle_import_protobuf_from_jar(args: &ImportArgs, jar_path: &PathBuf) -> Res
     // Create a single table from flattened columns
     let table_data = TableData {
         table_index: 0,
+        id: None, // Protobuf imports don't have UUIDs - generated later during model creation
         name: Some(root_message_name.clone()),
         columns,
+        ..Default::default()
     };
 
     let result = ImportResult {
@@ -1587,12 +1589,14 @@ pub fn handle_import_openapi(args: &ImportArgs) -> Result<(), CliError> {
                 Ok(table) => {
                     tables.push(crate::import::TableData {
                         table_index: tables.len(),
+                        id: Some(table.id.to_string()),
                         name: Some(table.name.clone()),
                         columns: table
                             .columns
                             .iter()
                             .map(crate::import::odcs_shared::column_to_column_data)
                             .collect(),
+                        ..Default::default()
                     });
                 }
                 Err(e) => {

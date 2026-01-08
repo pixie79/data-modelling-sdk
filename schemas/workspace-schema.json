@@ -103,6 +103,22 @@
         "description": {
           "type": "string",
           "description": "Optional description of the system"
+        },
+        "table_ids": {
+          "type": "array",
+          "description": "Optional array of table UUIDs that belong to this system. When present, provides explicit table-to-system mapping without requiring parsing of individual ODCS files.",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "asset_ids": {
+          "type": "array",
+          "description": "Optional array of compute asset (CADS) UUIDs that belong to this system. When present, provides explicit asset-to-system mapping.",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
         }
       },
       "additionalProperties": false
