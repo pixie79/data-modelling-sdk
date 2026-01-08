@@ -433,6 +433,7 @@ mod tests {
         let import_result = ImportResult {
             tables: vec![TableData {
                 table_index: 0,
+                id: Some("550e8400-e29b-41d4-a716-446655440000".to_string()),
                 name: Some("users".to_string()),
                 columns: vec![
                     ColumnData {
@@ -450,6 +451,7 @@ mod tests {
                         ..Default::default()
                     },
                 ],
+                ..Default::default()
             }],
             tables_requiring_name: vec![],
             errors: vec![],
@@ -504,6 +506,7 @@ mod tests {
                     primary_key: true,
                     ..Default::default()
                 }],
+                ..Default::default()
             }],
             tables_requiring_name: vec![],
             errors: vec![],

@@ -103,12 +103,82 @@ impl ODCLImporter {
     /// assert_eq!(result.tables.len(), 1);
     /// ```
     pub fn import(&mut self, yaml_content: &str) -> Result<ImportResult, ImportError> {
+        // First parse YAML to get raw data for field extraction
+        let yaml_data: serde_yaml::Value = serde_yaml::from_str(yaml_content)
+            .map_err(|e| ImportError::ParseError(format!("Failed to parse YAML: {}", e)))?;
+
+        let json_data = yaml_to_json_value(&yaml_data).map_err(|e| {
+            ImportError::ParseError(format!("Failed to convert YAML to JSON: {}", e))
+        })?;
+
         match self.parse(yaml_content) {
             Ok((table, errors)) => {
+                // Extract contract-level fields from the raw JSON data (ODCL/Data Contract format)
                 let sdk_tables = vec![TableData {
                     table_index: 0,
+                    id: Some(table.id.to_string()),
                     name: Some(table.name.clone()),
+                    api_version: json_data
+                        .get("dataContractSpecification")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    version: json_data
+                        .get("info")
+                        .and_then(|v| v.get("version"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    status: json_data
+                        .get("info")
+                        .and_then(|v| v.get("status"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    kind: Some("DataContract".to_string()),
+                    domain: json_data
+                        .get("info")
+                        .and_then(|v| v.get("domain"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    data_product: json_data
+                        .get("info")
+                        .and_then(|v| v.get("dataProduct"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    tenant: json_data
+                        .get("info")
+                        .and_then(|v| v.get("tenant"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    description: json_data
+                        .get("info")
+                        .and_then(|v| v.get("description"))
+                        .cloned(),
                     columns: table.columns.iter().map(column_to_column_data).collect(),
+                    servers: json_data
+                        .get("servers")
+                        .and_then(|v| v.as_array())
+                        .cloned()
+                        .unwrap_or_default(),
+                    team: json_data.get("info").and_then(|v| v.get("team")).cloned(),
+                    support: json_data
+                        .get("info")
+                        .and_then(|v| v.get("support"))
+                        .cloned(),
+                    roles: Vec::new(),
+                    sla_properties: json_data
+                        .get("servicelevels")
+                        .and_then(|v| v.as_array())
+                        .cloned()
+                        .unwrap_or_default(),
+                    quality: table.quality.clone(),
+                    price: json_data
+                        .get("info")
+                        .and_then(|v| v.get("pricing"))
+                        .cloned(),
+                    tags: table.tags.iter().map(|t| t.to_string()).collect(),
+                    custom_properties: Vec::new(),
+                    authoritative_definitions: Vec::new(),
+                    contract_created_ts: None,
+                    odcs_metadata: table.odcl_metadata.clone(),
                 }];
                 let sdk_errors: Vec<ImportError> = errors
                     .iter()

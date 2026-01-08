@@ -985,8 +985,10 @@ impl SQLImporter {
         Ok((
             TableData {
                 table_index,
+                id: None, // SQL imports don't have UUIDs - generated later during model creation
                 name: Some(table_name),
                 columns: out_cols,
+                ..Default::default()
             },
             requires_name,
         ))
@@ -1030,8 +1032,10 @@ impl SQLImporter {
         Ok((
             TableData {
                 table_index: view_index,
+                id: None, // SQL imports don't have UUIDs - generated later during model creation
                 name: Some(view_name),
                 columns: Vec::new(), // Views don't have explicit column definitions
+                ..Default::default()
             },
             requires_name,
         ))

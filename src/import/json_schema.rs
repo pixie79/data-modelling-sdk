@@ -95,8 +95,10 @@ impl JSONSchemaImporter {
                 for (idx, table) in tables.iter().enumerate() {
                     sdk_tables.push(TableData {
                         table_index: idx,
+                        id: Some(table.id.to_string()),
                         name: Some(table.name.clone()),
                         columns: table.columns.iter().map(column_to_column_data).collect(),
+                        ..Default::default()
                     });
                 }
                 let sdk_errors: Vec<ImportError> = errors

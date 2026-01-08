@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.5] - 2026-01-08
+
+### Added
+
+- **feat(import)**: Preserve all ODCS v3.1.0 contract-level fields during import (#35)
+  - `TableData` struct now includes: `id`, `apiVersion`, `version`, `status`, `kind`, `domain`, `dataProduct`, `tenant`, `description`, `servers`, `team`, `support`, `roles`, `slaProperties`, `quality`, `price`, `tags`, `customProperties`, `authoritativeDefinitions`, `contractCreatedTs`, `odcsMetadata`
+  - ODCS and ODCL importers extract all fields from source YAML
+  - Other importers (Avro, JSON Schema, Protobuf, SQL) use defaults for ODCS-specific fields
+
+- **feat(workspace)**: Add `table_ids` and `asset_ids` to SystemReference (#34)
+  - Optional UUID arrays for explicit table-to-system and asset-to-system mapping
+  - Enables direct relationships without relying on `customProperties.system_id`
+  - Updated workspace JSON schema and Rust types
+
+### Fixed
+
+- **fix(import)**: ODCS `id` field now correctly preserved in import results (#35)
+  - Previously the contract UUID was extracted but lost during `TableData` construction
+  - Tables now retain their source UUIDs for proper system linkage
+
 ## [1.13.4] - 2026-01-08
 
 ### Added
