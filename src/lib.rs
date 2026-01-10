@@ -2270,7 +2270,7 @@ mod wasm {
     ) -> Result<String, JsValue> {
         use crate::models::decision::Decision;
 
-        let dec = Decision::new(number, title, context, decision);
+        let dec = Decision::new(number.into(), title, context, decision);
         serde_json::to_string(&dec).map_err(serialization_error)
     }
 
@@ -2446,7 +2446,7 @@ mod wasm {
     ) -> Result<String, JsValue> {
         use crate::models::knowledge::KnowledgeArticle;
 
-        let article = KnowledgeArticle::new(number, title, summary, content, author);
+        let article = KnowledgeArticle::new(number.into(), title, summary, content, author);
         serde_json::to_string(&article).map_err(serialization_error)
     }
 
