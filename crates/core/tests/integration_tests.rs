@@ -1273,7 +1273,7 @@ mod example_file_roundtrip_tests {
     #[test]
     fn test_full_example_odcs_roundtrip() {
         // Load the full-example.odcs.yaml file
-        let original_yaml = std::fs::read_to_string("examples/full-example.odcs.yaml")
+        let original_yaml = std::fs::read_to_string("../../examples/full-example.odcs.yaml")
             .expect("Failed to read full-example.odcs.yaml");
 
         // Parse original YAML for comparison
@@ -1375,7 +1375,7 @@ mod example_file_roundtrip_tests {
     #[test]
     fn test_all_data_types_odcs_roundtrip() {
         // Load the all-data-types.odcs.yaml file
-        let original_yaml = std::fs::read_to_string("examples/all-data-types.odcs.yaml")
+        let original_yaml = std::fs::read_to_string("../../examples/all-data-types.odcs.yaml")
             .expect("Failed to read all-data-types.odcs.yaml");
 
         // Import
@@ -1484,7 +1484,7 @@ mod example_file_roundtrip_tests {
     #[test]
     fn test_time_example_odcl_to_odcs_roundtrip() {
         // Load the time-example.odcl.yaml file (ODCL format)
-        let original_yaml = std::fs::read_to_string("examples/time-example.odcl.yaml")
+        let original_yaml = std::fs::read_to_string("../../examples/time-example.odcl.yaml")
             .expect("Failed to read time-example.odcl.yaml");
 
         // Import using ODCL importer
@@ -1597,7 +1597,7 @@ mod example_file_roundtrip_tests {
     #[test]
     fn test_orders_latest_odcl_to_odcs_roundtrip() {
         // Load the orders-latest.odcl.yaml file (ODCL format)
-        let original_yaml = std::fs::read_to_string("examples/orders-latest.odcl.yaml")
+        let original_yaml = std::fs::read_to_string("../../examples/orders-latest.odcl.yaml")
             .expect("Failed to read orders-latest.odcl.yaml");
 
         // Import using ODCL importer
