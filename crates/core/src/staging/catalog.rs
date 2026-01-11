@@ -235,24 +235,95 @@ impl IcebergCatalog {
                     inner: Arc::new(catalog),
                 })
             }
-            CatalogConfig::S3Tables { .. } => {
-                // S3 Tables support will be added in a future release
-                Err(CatalogError::ConfigError(
-                    "S3 Tables catalog not yet implemented".to_string(),
-                ))
+            CatalogConfig::S3Tables { arn, region, .. } => {
+                // S3 Tables uses the REST API protocol, similar to Unity Catalog
+                // The S3 Tables service exposes an Iceberg REST endpoint
+                let mut props = HashMap::new();
+                // S3 Tables endpoint format: https://s3tables.<region>.amazonaws.com
+                props.insert(
+                    iceberg_catalog_rest::REST_CATALOG_PROP_URI.to_string(),
+                    format!("https://s3tables.{}.amazonaws.com", region),
+                );
+                props.insert(
+                    iceberg_catalog_rest::REST_CATALOG_PROP_WAREHOUSE.to_string(),
+                    arn.clone(),
+                );
+                // AWS credentials are picked up from environment/profile automatically
+
+                let catalog = RestCatalogBuilder::default()
+                    .load("s3tables", props)
+                    .await
+                    .map_err(|e| CatalogError::ConnectionError(e.to_string()))?;
+
+                Ok(Self {
+                    config,
+                    inner: Arc::new(catalog),
+                })
             }
-            CatalogConfig::Unity { .. } => {
-                // Unity Catalog support will be added in a future release
-                Err(CatalogError::ConfigError(
-                    "Unity Catalog not yet implemented".to_string(),
-                ))
+
+            CatalogConfig::Unity {
+                endpoint,
+                catalog: catalog_name,
+                token,
+            } => {
+                // Unity Catalog exposes an Iceberg REST API, so we can use the REST catalog
+                // See: https://docs.databricks.com/en/data-governance/unity-catalog/index.html
+                let mut props = HashMap::new();
+                props.insert(
+                    iceberg_catalog_rest::REST_CATALOG_PROP_URI.to_string(),
+                    format!("{}/api/2.1/unity-catalog/iceberg", endpoint),
+                );
+                props.insert(
+                    iceberg_catalog_rest::REST_CATALOG_PROP_WAREHOUSE.to_string(),
+                    catalog_name.clone(),
+                );
+                props.insert("token".to_string(), token.clone());
+                props.insert("credential".to_string(), format!("Bearer {}", token));
+
+                let catalog = RestCatalogBuilder::default()
+                    .load("unity", props)
+                    .await
+                    .map_err(|e| CatalogError::ConnectionError(e.to_string()))?;
+
+                Ok(Self {
+                    config,
+                    inner: Arc::new(catalog),
+                })
             }
-            CatalogConfig::Glue { .. } => {
-                // Glue catalog support will be added in a future release
-                Err(CatalogError::ConfigError(
-                    "Glue catalog not yet implemented".to_string(),
-                ))
+
+            #[cfg(feature = "iceberg-glue")]
+            CatalogConfig::Glue {
+                region,
+                database,
+                profile,
+            } => {
+                use iceberg::CatalogBuilder;
+                use iceberg_catalog_glue::{GLUE_CATALOG_PROP_WAREHOUSE, GlueCatalogBuilder};
+
+                let mut props = HashMap::new();
+                props.insert(GLUE_CATALOG_PROP_WAREHOUSE.to_string(), database.clone());
+                props.insert("aws.region".to_string(), region.clone());
+
+                if let Some(p) = profile {
+                    props.insert("aws.profile".to_string(), p.clone());
+                }
+
+                let catalog = GlueCatalogBuilder::default()
+                    .load("glue", props)
+                    .await
+                    .map_err(|e| CatalogError::ConnectionError(e.to_string()))?;
+
+                Ok(Self {
+                    config,
+                    inner: Arc::new(catalog),
+                })
             }
+            #[cfg(not(feature = "iceberg-glue"))]
+            CatalogConfig::Glue { .. } => Err(CatalogError::ConfigError(
+                "Glue catalog requires the 'iceberg-glue' feature. \
+                 Enable it with: --features iceberg-glue"
+                    .to_string(),
+            )),
         }
     }
 

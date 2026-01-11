@@ -350,7 +350,7 @@ This document provides a detailed task breakdown for implementing the data pipel
 - [x] Define Unity Catalog export config
 - [x] Define S3 Tables export config
 - [x] Define Glue export config
-- [ ] Implement actual cloud catalog registration (future)
+- [x] Implement cloud catalog registration (Unity, Glue, S3 Tables)
 
 ### 3.7 CLI Commands
 - [x] Update `staging init` for catalog config

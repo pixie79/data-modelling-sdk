@@ -637,14 +637,11 @@ mod tests {
 
     #[test]
     fn test_batch_metadata() {
-        let batch = BatchMetadata {
-            batch_id: "batch-001".to_string(),
-            started_at: Utc::now(),
-            completed_at: None,
-            record_count: 100,
-            source: "./data/*.json".to_string(),
-            partition: Some("2024-01".to_string()),
-        };
+        let batch = BatchMetadata::new(
+            "batch-001".to_string(),
+            "./data/*.json".to_string(),
+            Some("2024-01".to_string()),
+        );
 
         let json = serde_json::to_string(&batch).unwrap();
         let parsed: BatchMetadata = serde_json::from_str(&json).unwrap();
@@ -653,43 +650,56 @@ mod tests {
         assert_eq!(batch.record_count, parsed.record_count);
         assert_eq!(batch.source, parsed.source);
         assert!(parsed.completed_at.is_none());
+        assert_eq!(parsed.status, BatchStatus::Running);
     }
 
     #[test]
     fn test_batch_metadata_completed() {
-        let started = Utc::now();
-        let completed = started + chrono::Duration::seconds(60);
-
-        let batch = BatchMetadata {
-            batch_id: "batch-002".to_string(),
-            started_at: started,
-            completed_at: Some(completed),
-            record_count: 500,
-            source: "s3://bucket/data/".to_string(),
-            partition: None,
-        };
+        let mut batch = BatchMetadata::new(
+            "batch-002".to_string(),
+            "s3://bucket/data/".to_string(),
+            None,
+        );
+        batch.record_count = 500;
+        batch.complete();
 
         let json = serde_json::to_string(&batch).unwrap();
         let parsed: BatchMetadata = serde_json::from_str(&json).unwrap();
 
         assert!(parsed.completed_at.is_some());
         assert_eq!(parsed.record_count, 500);
+        assert_eq!(parsed.status, BatchStatus::Completed);
     }
 
     #[test]
     fn test_batch_metadata_property_key() {
-        let batch = BatchMetadata {
-            batch_id: "test-batch-123".to_string(),
-            started_at: Utc::now(),
-            completed_at: None,
-            record_count: 0,
-            source: "./".to_string(),
-            partition: None,
-        };
+        let batch = BatchMetadata::new("test-batch-123".to_string(), "./".to_string(), None);
 
         // Verify the key format used for table properties
         let key = format!("batch.{}", batch.batch_id);
         assert_eq!(key, "batch.test-batch-123");
+    }
+
+    #[test]
+    fn test_batch_metadata_resume() {
+        let mut batch = BatchMetadata::new("batch-resume".to_string(), "./data/".to_string(), None);
+
+        // Initially can resume (status is Running)
+        assert!(batch.can_resume());
+
+        // After completion, cannot resume
+        batch.complete();
+        assert!(!batch.can_resume());
+
+        // Failed batches can be resumed
+        let mut failed_batch =
+            BatchMetadata::new("batch-failed".to_string(), "./data/".to_string(), None);
+        failed_batch.fail("Connection error".to_string());
+        assert!(failed_batch.can_resume());
+        assert_eq!(
+            failed_batch.error_message,
+            Some("Connection error".to_string())
+        );
     }
 
     #[test]

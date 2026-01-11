@@ -80,6 +80,7 @@ glob = { version = "0.3", optional = true }
 # Apache Iceberg support (for data lakehouse storage)
 iceberg = { version = "0.7", optional = true }
 iceberg-catalog-rest = { version = "0.7", optional = true }
+iceberg-catalog-glue = { version = "0.7", optional = true }
 
 # Arrow and Parquet for Iceberg data writing
 arrow = { version = "55", optional = true }
@@ -122,6 +123,7 @@ staging-postgres = ["postgres-backend", "glob", "sha2"]
 
 # Apache Iceberg lakehouse storage
 iceberg = ["dep:iceberg", "iceberg-catalog-rest", "tokio", "arrow", "parquet"]
+iceberg-glue = ["iceberg", "iceberg-catalog-glue"]
 
 # Schema inference engine
 inference = []
