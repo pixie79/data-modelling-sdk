@@ -39,6 +39,8 @@ mod config;
 mod db;
 mod error;
 #[cfg(feature = "iceberg")]
+pub mod export;
+#[cfg(feature = "iceberg")]
 pub mod iceberg_table;
 mod ingest;
 mod schema;
@@ -55,6 +57,10 @@ pub use db::StagingDb;
 pub use db::StagingDbPostgres;
 pub use error::{IngestError, StagingError};
 #[cfg(feature = "iceberg")]
+pub use export::{ExportConfig, ExportResult, ExportTarget};
+#[cfg(feature = "iceberg")]
 pub use iceberg_table::IcebergTable;
 pub use ingest::IngestStats;
+#[cfg(feature = "iceberg")]
+pub use ingest::ingest_to_iceberg;
 pub use schema::StagingSchema;

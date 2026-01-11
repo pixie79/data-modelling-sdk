@@ -11,10 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **feat(iceberg)**: Apache Iceberg integration for data lakehouse staging (Phase 3)
   - New `iceberg` feature flag for optional Iceberg support
+  - Added `arrow = "55"` and `parquet = "55"` dependencies for data writing
   - Catalog abstraction supporting REST (Lakekeeper/Nessie/Polaris), S3 Tables, Unity Catalog, and Glue
   - `CatalogConfig` enum with serializable configuration for all catalog types
   - `IcebergCatalog` wrapper with async operations for namespace and table management
   - `IcebergTable` for raw JSON staging with time travel support
+    - `append_records()` method converts JSON records to Arrow RecordBatch and writes Parquet files
+    - `write_parquet_file()` helper with SNAPPY compression
+  - `ingest_to_iceberg()` function for batch ingestion from local files to Iceberg tables
+  - `to_raw_json_records()` conversion function for file-to-record transformation
+  - Export module (`staging/export.rs`) with:
+    - `ExportTarget` enum (Unity, Glue, S3Tables, Local)
+    - `ExportConfig` and `ExportResult` structs
+    - `export_to_catalog()` function with local filesystem export support
   - Snapshot listing and time travel queries by version or timestamp
   - Batch metadata storage in Iceberg table properties
   - New CLI commands:

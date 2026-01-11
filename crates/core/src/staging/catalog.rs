@@ -104,7 +104,7 @@ pub enum CatalogError {
 
     /// IO error
     #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
+    IoError(String),
 
     /// Configuration error
     #[error("Configuration error: {0}")]

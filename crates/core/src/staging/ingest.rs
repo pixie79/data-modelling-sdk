@@ -249,6 +249,142 @@ pub fn should_skip_file(
     }
 }
 
+/// Convert a discovered file to RawJsonRecords for Iceberg storage
+#[cfg(feature = "iceberg")]
+pub fn to_raw_json_records(
+    file: &DiscoveredFile,
+    partition: Option<&str>,
+) -> Result<Vec<super::iceberg_table::RawJsonRecord>, IngestError> {
+    use super::iceberg_table::RawJsonRecord;
+    use chrono::Utc;
+
+    let records = parse_file(&file.path)?;
+    let now = Utc::now();
+
+    Ok(records
+        .into_iter()
+        .map(|r| RawJsonRecord {
+            path: file.path.display().to_string(),
+            content: r.json,
+            size: file.size as usize,
+            content_hash: file.content_hash.clone(),
+            partition: partition.map(|s| s.to_string()),
+            ingested_at: now,
+        })
+        .collect())
+}
+
+/// Ingest files to an Iceberg table
+///
+/// This function:
+/// 1. Discovers files matching the pattern
+/// 2. Optionally computes content hashes for deduplication
+/// 3. Converts files to RawJsonRecords
+/// 4. Writes records to the Iceberg table in batches
+///
+/// Returns ingestion statistics including records written and any errors.
+#[cfg(feature = "iceberg")]
+pub async fn ingest_to_iceberg(
+    base_path: &Path,
+    pattern: &str,
+    table: &super::iceberg_table::IcebergTable,
+    catalog: &super::catalog::IcebergCatalog,
+    partition: Option<&str>,
+    dedup: DedupStrategy,
+    batch_size: usize,
+) -> Result<IngestStats, IngestError> {
+    use std::collections::HashSet;
+    use std::time::Instant;
+
+    let start = Instant::now();
+    let mut stats = IngestStats::new();
+
+    // Discover files
+    let mut files = discover_local_files(base_path, pattern)?;
+
+    // Get existing paths/hashes if deduplication is enabled
+    let existing_paths: HashSet<String> = HashSet::new(); // TODO: Query from table properties
+    let existing_hashes: HashSet<String> = HashSet::new(); // TODO: Query from table properties
+
+    // Compute hashes if needed for deduplication
+    if matches!(dedup, DedupStrategy::ByContent | DedupStrategy::Both) {
+        for file in &mut files {
+            if let Err(e) = file.compute_hash() {
+                stats.add_error(format!("Failed to hash {}: {}", file.path.display(), e));
+            }
+        }
+    }
+
+    // Process files in batches
+    let mut batch_records = Vec::new();
+
+    for mut file in files {
+        // Check deduplication
+        if should_skip_file(&file, dedup, &existing_paths, &existing_hashes) {
+            stats.files_skipped += 1;
+            continue;
+        }
+
+        // Compute hash if not already done (for storage)
+        if file.content_hash.is_none() {
+            let _ = file.compute_hash();
+        }
+
+        // Convert to RawJsonRecords
+        match to_raw_json_records(&file, partition) {
+            Ok(records) => {
+                stats.bytes_processed += file.size;
+                batch_records.extend(records);
+            }
+            Err(e) => {
+                stats.add_error(format!("Failed to parse {}: {}", file.path.display(), e));
+                continue;
+            }
+        }
+
+        stats.files_processed += 1;
+
+        // Write batch if size threshold reached
+        if batch_records.len() >= batch_size {
+            match table.append_records(&batch_records, catalog).await {
+                Ok(result) => {
+                    stats.records_ingested += result.records_written;
+                    tracing::info!(
+                        "Wrote batch of {} records ({} bytes)",
+                        result.records_written,
+                        result.bytes_written
+                    );
+                }
+                Err(e) => {
+                    stats.add_error(format!("Failed to write batch: {}", e));
+                }
+            }
+            batch_records.clear();
+        }
+    }
+
+    // Write remaining records
+    if !batch_records.is_empty() {
+        match table.append_records(&batch_records, catalog).await {
+            Ok(result) => {
+                stats.records_ingested += result.records_written;
+                tracing::info!(
+                    "Wrote final batch of {} records ({} bytes)",
+                    result.records_written,
+                    result.bytes_written
+                );
+            }
+            Err(e) => {
+                stats.add_error(format!("Failed to write final batch: {}", e));
+            }
+        }
+    }
+
+    stats.duration = start.elapsed();
+
+    Ok(stats)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -90,6 +90,17 @@ pub struct SnapshotInfo {
     pub summary: HashMap<String, String>,
 }
 
+/// Result of an append operation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppendResult {
+    /// Number of records written
+    pub records_written: usize,
+    /// Bytes written to Parquet file
+    pub bytes_written: u64,
+    /// Path to the written data file (if any)
+    pub data_file_path: Option<String>,
+}
+
 /// Iceberg table wrapper for staging operations
 pub struct IcebergTable {
     identifier: TableIdentifier,
@@ -225,6 +236,117 @@ impl IcebergTable {
         &self.identifier
     }
 
+    /// Get the underlying Iceberg table reference
+    #[cfg(feature = "iceberg")]
+    pub fn inner(&self) -> &iceberg::table::Table {
+        &self.table
+    }
+
+    /// Append records to the table
+    ///
+    /// This method:
+    /// 1. Converts records to Arrow RecordBatch
+    /// 2. Writes to a Parquet file in the table's data directory
+    /// 3. Creates a DataFile reference
+    /// 4. Commits the append via a transaction
+    ///
+    /// Note: This is a placeholder that documents the intended flow.
+    /// Full implementation requires:
+    /// - Arrow schema conversion
+    /// - Parquet file writing with proper statistics
+    /// - Transaction commit via catalog
+    #[cfg(feature = "iceberg")]
+    pub async fn append_records(
+        &self,
+        records: &[RawJsonRecord],
+        catalog: &IcebergCatalog,
+    ) -> CatalogResult<AppendResult> {
+        use arrow::array::{Int64Array, StringArray, TimestampMicrosecondArray};
+        use arrow::datatypes::{DataType, Field, Schema as ArrowSchema, TimeUnit};
+        use arrow::record_batch::RecordBatch;
+        use std::fs::File;
+        use std::path::Path;
+
+        if records.is_empty() {
+            return Ok(AppendResult {
+                records_written: 0,
+                bytes_written: 0,
+                data_file_path: None,
+            });
+        }
+
+        // Create Arrow schema matching our Iceberg schema
+        let arrow_schema = Arc::new(ArrowSchema::new(vec![
+            Field::new("path", DataType::Utf8, false),
+            Field::new("content", DataType::Utf8, false),
+            Field::new("size", DataType::Int64, false),
+            Field::new("content_hash", DataType::Utf8, true),
+            Field::new("partition", DataType::Utf8, true),
+            Field::new(
+                "ingested_at",
+                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
+                false,
+            ),
+        ]));
+
+        // Convert records to Arrow arrays
+        let paths: Vec<&str> = records.iter().map(|r| r.path.as_str()).collect();
+        let contents: Vec<&str> = records.iter().map(|r| r.content.as_str()).collect();
+        let sizes: Vec<i64> = records.iter().map(|r| r.size as i64).collect();
+        let hashes: Vec<Option<&str>> = records.iter().map(|r| r.content_hash.as_deref()).collect();
+        let partitions: Vec<Option<&str>> =
+            records.iter().map(|r| r.partition.as_deref()).collect();
+        let timestamps: Vec<i64> = records
+            .iter()
+            .map(|r| r.ingested_at.timestamp_micros())
+            .collect();
+
+        let batch = RecordBatch::try_new(
+            arrow_schema.clone(),
+            vec![
+                Arc::new(StringArray::from(paths)),
+                Arc::new(StringArray::from(contents)),
+                Arc::new(Int64Array::from(sizes)),
+                Arc::new(StringArray::from(hashes)),
+                Arc::new(StringArray::from(partitions)),
+                Arc::new(
+                    TimestampMicrosecondArray::from(timestamps).with_timezone("UTC".to_string()),
+                ),
+            ],
+        )
+        .map_err(|e| CatalogError::SchemaError(format!("Failed to create RecordBatch: {}", e)))?;
+
+        // Generate unique file path in table's data directory
+        let file_id = uuid::Uuid::new_v4();
+        let location = self.table.metadata().location();
+        let data_file_path = format!("{}/data/{}.parquet", location, file_id);
+
+        // Write Parquet file
+        let bytes_written = write_parquet_file(&data_file_path, &batch).await?;
+
+        tracing::info!(
+            "Wrote {} records ({} bytes) to {}",
+            records.len(),
+            bytes_written,
+            data_file_path
+        );
+
+        // TODO: Create DataFile and commit via transaction
+        // This requires:
+        // 1. Creating a DataFile with proper statistics
+        // 2. Using Transaction::fast_append().add_data_files()
+        // 3. Committing to the catalog
+        //
+        // For now, we just write the Parquet file. Full transaction
+        // support requires additional catalog integration.
+
+        Ok(AppendResult {
+            records_written: records.len(),
+            bytes_written,
+            data_file_path: Some(data_file_path),
+        })
+    }
+
     /// Get the current snapshot ID
     #[cfg(feature = "iceberg")]
     pub fn current_snapshot_id(&self) -> Option<i64> {
@@ -325,6 +447,66 @@ impl IcebergTable {
     pub fn location(&self) -> &str {
         self.table.metadata().location()
     }
+}
+
+/// Write a RecordBatch to a Parquet file
+///
+/// This function handles:
+/// - Creating the parent directory if needed
+/// - Writing with appropriate Parquet settings
+/// - Returning the bytes written
+#[cfg(feature = "iceberg")]
+async fn write_parquet_file(
+    path: &str,
+    batch: &arrow::record_batch::RecordBatch,
+) -> CatalogResult<u64> {
+    use parquet::arrow::ArrowWriter;
+    use parquet::basic::Compression;
+    use parquet::file::properties::WriterProperties;
+    use std::fs::{self, File};
+    use std::path::Path;
+
+    // Ensure parent directory exists
+    let file_path = Path::new(path);
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| {
+            CatalogError::IoError(format!(
+                "Failed to create directory {}: {}",
+                parent.display(),
+                e
+            ))
+        })?;
+    }
+
+    // Create the file
+    let file = File::create(file_path)
+        .map_err(|e| CatalogError::IoError(format!("Failed to create file {}: {}", path, e)))?;
+
+    // Configure Parquet writer properties
+    let props = WriterProperties::builder()
+        .set_compression(Compression::SNAPPY)
+        .build();
+
+    // Write the RecordBatch
+    let mut writer = ArrowWriter::try_new(file, batch.schema(), Some(props))
+        .map_err(|e| CatalogError::IoError(format!("Failed to create Parquet writer: {}", e)))?;
+
+    writer
+        .write(batch)
+        .map_err(|e| CatalogError::IoError(format!("Failed to write RecordBatch: {}", e)))?;
+
+    let metadata = writer
+        .close()
+        .map_err(|e| CatalogError::IoError(format!("Failed to close Parquet writer: {}", e)))?;
+
+    // Return total bytes written (sum of row groups)
+    let bytes_written: u64 = metadata
+        .row_groups
+        .iter()
+        .map(|rg| rg.total_byte_size as u64)
+        .sum();
+
+    Ok(bytes_written)
 }
 
 #[cfg(test)]

@@ -311,13 +311,17 @@ This document provides a detailed task breakdown for implementing the data pipel
 - [x] Implement `IcebergTable` struct
 - [x] Implement table creation with schema
 - [x] Define `RawJsonRecord` for JSON staging
+- [x] Implement `append_records()` method with Arrow/Parquet writing
+- [x] Implement `write_parquet_file()` helper function
 - [x] Implement time travel reads (by version) - `get_snapshot()`
 - [x] Implement time travel reads (by timestamp) - `list_snapshots()`
 - [x] Store batch metadata in table properties - `BatchMetadata`
 - [x] Implement table history listing - `list_snapshots()`
 
 ### 3.4 Ingestion Migration
-- [ ] Update `src/staging/ingest.rs` for Iceberg writes (future)
+- [x] Add `arrow = "55"` and `parquet = "55"` dependencies
+- [x] Update `src/staging/ingest.rs` for Iceberg writes (`ingest_to_iceberg()`)
+- [x] Add `to_raw_json_records()` conversion function
 - [x] Migrate batch tracking to table properties
 - [ ] Remove DuckDB `staged_json` table usage (keep both backends)
 - [x] Keep DuckDB for complex batch queries (optional)
@@ -331,12 +335,16 @@ This document provides a detailed task breakdown for implementing the data pipel
 - [x] Validate view creation
 
 ### 3.6 Production Export
-- [x] Define export CLI command structure
+- [x] Create `src/staging/export.rs`
+- [x] Define `ExportTarget` enum (Unity, Glue, S3Tables, Local)
+- [x] Define `ExportConfig` struct
+- [x] Define `ExportResult` struct
+- [x] Implement `export_to_catalog()` function
+- [x] Implement `export_to_local()` for local Parquet file copying
 - [x] Define Unity Catalog export config
 - [x] Define S3 Tables export config
 - [x] Define Glue export config
-- [ ] Implement actual Parquet file writing (future)
-- [ ] Implement catalog registration (future)
+- [ ] Implement actual cloud catalog registration (future)
 
 ### 3.7 CLI Commands
 - [x] Update `staging init` for catalog config

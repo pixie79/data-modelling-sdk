@@ -81,6 +81,10 @@ glob = { version = "0.3", optional = true }
 iceberg = { version = "0.7", optional = true }
 iceberg-catalog-rest = { version = "0.7", optional = true }
 
+# Arrow and Parquet for Iceberg data writing
+arrow = { version = "55", optional = true }
+parquet = { version = "55", optional = true, features = ["async"] }
+
 # WASM support (for browser storage backend)
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
@@ -117,7 +121,7 @@ staging = ["duckdb-backend", "glob", "sha2"]
 staging-postgres = ["postgres-backend", "glob", "sha2"]
 
 # Apache Iceberg lakehouse storage
-iceberg = ["dep:iceberg", "iceberg-catalog-rest", "tokio"]
+iceberg = ["dep:iceberg", "iceberg-catalog-rest", "tokio", "arrow", "parquet"]
 
 # Schema inference engine
 inference = []
