@@ -323,7 +323,7 @@ This document provides a detailed task breakdown for implementing the data pipel
 - [x] Update `src/staging/ingest.rs` for Iceberg writes (`ingest_to_iceberg()`)
 - [x] Add `to_raw_json_records()` conversion function
 - [x] Migrate batch tracking to table properties
-- [ ] Remove DuckDB `staged_json` table usage (keep both backends)
+- [x] Keep both DuckDB and Iceberg backends available (user choice)
 - [x] Keep DuckDB for complex batch queries (optional)
 - [ ] Update resume logic for Iceberg (future)
 
