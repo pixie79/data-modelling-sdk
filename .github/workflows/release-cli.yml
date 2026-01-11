@@ -23,7 +23,46 @@ permissions:
   contents: write
 
 jobs:
+  verify-versions:
+    name: Verify Version Consistency
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract and verify versions
+        id: version
+        run: |
+          # Get version from Cargo.toml
+          CARGO_VERSION=$(grep -A 10 '^\[package\]' Cargo.toml | grep '^version = ' | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "Cargo.toml version: $CARGO_VERSION"
+
+          # Get version from CHANGELOG.md
+          CHANGELOG_VERSION=$(grep -E '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | head -1 | sed -E 's/^## \[([0-9]+\.[0-9]+\.[0-9]+)\].*/\1/')
+          echo "CHANGELOG.md version: $CHANGELOG_VERSION"
+
+          # Check for version match
+          if [ "$CARGO_VERSION" != "$CHANGELOG_VERSION" ]; then
+            echo "::error::Version mismatch! Cargo.toml ($CARGO_VERSION) != CHANGELOG.md ($CHANGELOG_VERSION)"
+            exit 1
+          fi
+
+          # If triggered by tag, verify tag matches
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG_VERSION=${GITHUB_REF#refs/tags/v}
+            echo "Tag version: $TAG_VERSION"
+            if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+              echo "::error::Tag version ($TAG_VERSION) does not match Cargo.toml ($CARGO_VERSION)"
+              exit 1
+            fi
+          fi
+
+          echo "version=$CARGO_VERSION" >> $GITHUB_OUTPUT
+          echo "✓ All versions consistent: $CARGO_VERSION"
+
   build-cli:
+    needs: verify-versions
     name: Build CLI
     runs-on: ${{ matrix.os }}
     strategy:
@@ -246,6 +285,7 @@ jobs:
 
   build-wasm:
     name: Build WASM SDK
+    needs: verify-versions
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -297,6 +337,35 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Building WASM version: $VERSION"
 
+          # Determine if this is a production release (tag push)
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update package.json version
+        run: |
+          cd pkg
+          # Update version in package.json to match Cargo.toml
+          npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
+          # Update package name to scoped package for npm
+          sed -i 's/"name": "data-modelling-sdk"/"name": "@offen-daten\/data-modelling-sdk"/' package.json
+          # Add repository info
+          cat package.json | jq '. + {
+            "repository": {
+              "type": "git",
+              "url": "git+https://github.com/OffeneDatenmodellierung/data-modelling-sdk.git"
+            },
+            "homepage": "https://github.com/OffeneDatenmodellierung/data-modelling-sdk#readme",
+            "bugs": {
+              "url": "https://github.com/OffeneDatenmodellierung/data-modelling-sdk/issues"
+            },
+            "keywords": ["wasm", "data-modelling", "odcs", "schema", "rust"]
+          }' > package.json.tmp && mv package.json.tmp package.json
+          echo "Updated package.json:"
+          cat package.json
+
       - name: Create WASM archive
         id: archive
         shell: bash
@@ -310,6 +379,13 @@ jobs:
         with:
           name: wasm-sdk
           path: ${{ steps.archive.outputs.archive_name }}
+          retention-days: 30
+
+      - name: Upload npm package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: pkg/
           retention-days: 30
 
   create-release:
@@ -418,7 +494,49 @@ jobs:
 
             See [CLI.md](https://github.com/${{ github.repository }}/blob/main/CLI.md) for CLI usage instructions.
 
+            ### npm Package
+
+            ```bash
+            npm install @offen-daten/data-modelling-sdk
+            ```
+
           files: |
             artifacts/**/*
           draft: false
           prerelease: false
+
+  publish-npm:
+    name: Publish to npm
+    needs: [build-wasm, create-release]
+    runs-on: ubuntu-latest
+    # Only publish to npm on tag releases (not dev builds)
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download npm package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+          path: pkg/
+
+      - name: Verify package contents
+        run: |
+          echo "Package contents:"
+          ls -la pkg/
+          echo ""
+          echo "package.json:"
+          cat pkg/package.json
+
+      - name: Publish to npm
+        run: |
+          cd pkg
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
