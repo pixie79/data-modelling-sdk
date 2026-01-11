@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/pixie79/data-modelling-sdk/schemas/workspace-schema.json",
+  "$id": "https://github.com/offenedatenmodellierung/data-modelling-sdk/schemas/workspace-schema.json",
   "title": "Workspace Schema",
   "description": "Schema for a Workspace entity in the data modelling application. Workspaces are top-level containers that organize domains, systems, their associated assets, and relationships. All files use a flat naming convention: {workspace}_{domain}_{system}_{resource}.xxx.yaml",
   "type": "object",

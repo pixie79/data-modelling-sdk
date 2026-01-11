@@ -511,6 +511,9 @@ jobs:
     runs-on: ubuntu-latest
     # Only publish to npm on tag releases (not dev builds)
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      id-token: write # Required for OIDC authentication with npm (provenance)
     steps:
       - uses: actions/checkout@v4
 
@@ -534,9 +537,12 @@ jobs:
           echo "package.json:"
           cat pkg/package.json
 
-      - name: Publish to npm
+      # Publish with provenance for supply chain security
+      # This creates a verifiable link between the npm package and this GitHub repo
+      # See: https://docs.npmjs.com/generating-provenance-statements
+      - name: Publish to npm (with provenance)
         run: |
           cd pkg
-          npm publish --access public
+          npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
