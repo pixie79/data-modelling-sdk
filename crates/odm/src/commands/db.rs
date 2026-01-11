@@ -8,13 +8,13 @@ use crate::error::CliError;
 
 #[cfg(feature = "duckdb-backend")]
 use data_modelling_core::database::duckdb::DuckDBBackend;
-#[cfg(feature = "database")]
+#[cfg(feature = "duckdb-backend")]
 use data_modelling_core::database::{
     DatabaseBackend,
     config::{CONFIG_FILENAME, DatabaseBackendType, DatabaseConfig},
     sync::{SyncEngine, generate_flat_filename},
 };
-#[cfg(feature = "database")]
+#[cfg(feature = "duckdb-backend")]
 use data_modelling_core::models::workspace::AssetType;
 
 /// Database command arguments
@@ -161,9 +161,9 @@ pub fn handle_db_init(_args: &DbInitArgs) -> Result<(), CliError> {
 /// Sync YAML files to database
 #[cfg(feature = "duckdb-backend")]
 pub fn handle_db_sync(args: &DbSyncArgs) -> Result<(), CliError> {
-    use crate::model::ModelLoader;
-    use crate::storage::filesystem::FileSystemStorageBackend;
+    use data_modelling_core::model::ModelLoader;
     use data_modelling_core::models::Workspace;
+    use data_modelling_core::storage::filesystem::FileSystemStorageBackend;
 
     let workspace_path = &args.workspace;
 
@@ -205,12 +205,14 @@ pub fn handle_db_sync(args: &DbSyncArgs) -> Result<(), CliError> {
         }
 
         // Convert RelationshipData to Relationship
-        let relationships: Vec<crate::models::Relationship> = model_result
+        let relationships: Vec<data_modelling_core::models::Relationship> = model_result
             .relationships
             .iter()
             .map(|r| {
-                let mut rel =
-                    crate::models::Relationship::new(r.source_table_id, r.target_table_id);
+                let mut rel = data_modelling_core::models::Relationship::new(
+                    r.source_table_id,
+                    r.target_table_id,
+                );
                 rel.id = r.id;
                 rel
             })
