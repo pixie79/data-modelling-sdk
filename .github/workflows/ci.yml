@@ -54,10 +54,13 @@ jobs:
       - name: Run Rust clippy (core features)
         run: cargo clippy --lib --features "api-backend,native-fs,git,cli,openapi,bpmn,dmn" -- -D warnings
 
+      # Run cargo audit directly instead of using rustsec/audit-check action
+      # The action uses Check API which fails on forked repos
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+
       - name: Run cargo audit
-        uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo audit
 
   # Core tests - runs without database features (fast)
   test:

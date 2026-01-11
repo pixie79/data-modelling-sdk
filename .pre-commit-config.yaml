@@ -13,11 +13,11 @@ repos:
       - id: check-toml
       - id: check-json
       - id: check-added-large-files
-        args: ['--maxkb=1000']
+        args: ["--maxkb=1000"]
       - id: check-merge-conflict
       - id: check-case-conflict
       - id: mixed-line-ending
-        args: ['--fix=lf']
+        args: ["--fix=lf"]
 
   # Rust formatting and linting
   - repo: local
@@ -55,3 +55,11 @@ repos:
         types: [rust]
         pass_filenames: false
         always_run: true
+
+      - id: check-versions
+        name: check version consistency
+        entry: bash -c './scripts/check-versions.sh'
+        language: system
+        pass_filenames: false
+        always_run: true
+        files: '(Cargo\.toml|CHANGELOG\.md|pkg/package\.json)$'
