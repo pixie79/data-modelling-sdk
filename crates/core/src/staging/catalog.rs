@@ -377,7 +377,15 @@ mod tests {
     }
 
     #[test]
-    fn test_catalog_config_serialize() {
+    fn test_table_identifier_with_dots_in_name() {
+        // Should only split on first dot
+        let id = TableIdentifier::parse("staging.my.table.name").unwrap();
+        assert_eq!(id.namespace, "staging");
+        assert_eq!(id.name, "my.table.name");
+    }
+
+    #[test]
+    fn test_catalog_config_serialize_rest() {
         let config = CatalogConfig::Rest {
             endpoint: "http://localhost:8181".to_string(),
             warehouse: "./warehouse".to_string(),
@@ -388,5 +396,128 @@ mod tests {
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("rest"));
         assert!(json.contains("localhost:8181"));
+    }
+
+    #[test]
+    fn test_catalog_config_serialize_s3_tables() {
+        let config = CatalogConfig::S3Tables {
+            arn: "arn:aws:s3tables:us-east-1:123456789:bucket/my-bucket".to_string(),
+            region: "us-east-1".to_string(),
+            profile: Some("default".to_string()),
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("s3_tables"));
+        assert!(json.contains("arn:aws:s3tables"));
+        assert!(json.contains("us-east-1"));
+    }
+
+    #[test]
+    fn test_catalog_config_serialize_unity() {
+        let config = CatalogConfig::Unity {
+            endpoint: "https://workspace.cloud.databricks.com".to_string(),
+            catalog: "main".to_string(),
+            token: "dapi123456".to_string(),
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("unity"));
+        assert!(json.contains("databricks.com"));
+        assert!(json.contains("main"));
+    }
+
+    #[test]
+    fn test_catalog_config_serialize_glue() {
+        let config = CatalogConfig::Glue {
+            region: "eu-west-1".to_string(),
+            database: "staging_db".to_string(),
+            profile: None,
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("glue"));
+        assert!(json.contains("eu-west-1"));
+        assert!(json.contains("staging_db"));
+    }
+
+    #[test]
+    fn test_catalog_config_deserialize_rest() {
+        let json = r#"{
+            "type": "rest",
+            "endpoint": "http://localhost:8181",
+            "warehouse": "./warehouse",
+            "token": null,
+            "properties": {}
+        }"#;
+
+        let config: CatalogConfig = serde_json::from_str(json).unwrap();
+        match config {
+            CatalogConfig::Rest {
+                endpoint,
+                warehouse,
+                token,
+                ..
+            } => {
+                assert_eq!(endpoint, "http://localhost:8181");
+                assert_eq!(warehouse, "./warehouse");
+                assert!(token.is_none());
+            }
+            _ => panic!("Expected REST config"),
+        }
+    }
+
+    #[test]
+    fn test_catalog_config_with_properties() {
+        let mut props = HashMap::new();
+        props.insert(
+            "oauth2-server-uri".to_string(),
+            "https://auth.example.com".to_string(),
+        );
+        props.insert("credential".to_string(), "client_credentials".to_string());
+
+        let config = CatalogConfig::Rest {
+            endpoint: "http://localhost:8181".to_string(),
+            warehouse: "./warehouse".to_string(),
+            token: None,
+            properties: props,
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("oauth2-server-uri"));
+        assert!(json.contains("client_credentials"));
+    }
+
+    #[test]
+    fn test_table_info_serialization() {
+        let mut props = HashMap::new();
+        props.insert("batch.123".to_string(), "metadata".to_string());
+
+        let info = TableInfo {
+            identifier: TableIdentifier::new("staging", "raw_json"),
+            location: "s3://bucket/warehouse/staging/raw_json".to_string(),
+            current_snapshot_id: Some(12345),
+            properties: props,
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("staging"));
+        assert!(json.contains("raw_json"));
+        assert!(json.contains("12345"));
+        assert!(json.contains("batch.123"));
+    }
+
+    #[test]
+    fn test_catalog_error_display() {
+        let err = CatalogError::TableNotFound("staging.raw_json".to_string());
+        assert_eq!(err.to_string(), "Table not found: staging.raw_json");
+
+        let err = CatalogError::NamespaceNotFound("staging".to_string());
+        assert_eq!(err.to_string(), "Namespace not found: staging");
+
+        let err = CatalogError::ConnectionError("Connection refused".to_string());
+        assert_eq!(
+            err.to_string(),
+            "Failed to connect to catalog: Connection refused"
+        );
     }
 }

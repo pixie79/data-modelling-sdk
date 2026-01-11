@@ -344,6 +344,46 @@ mod tests {
 
         let json = serde_json::to_string(&record).unwrap();
         assert!(json.contains("test.json"));
+        // Content is escaped in JSON serialization
+        assert!(json.contains("key"));
+        assert!(json.contains("value"));
+        assert!(json.contains("abc123"));
+        assert!(json.contains("2024-01"));
+    }
+
+    #[test]
+    fn test_raw_json_record_minimal() {
+        let record = RawJsonRecord {
+            path: "/data/file.json".to_string(),
+            content: "{}".to_string(),
+            size: 2,
+            content_hash: None,
+            partition: None,
+            ingested_at: Utc::now(),
+        };
+
+        let json = serde_json::to_string(&record).unwrap();
+        let parsed: RawJsonRecord = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(record.path, parsed.path);
+        assert_eq!(record.size, parsed.size);
+        assert!(parsed.content_hash.is_none());
+        assert!(parsed.partition.is_none());
+    }
+
+    #[test]
+    fn test_raw_json_record_large_content() {
+        let large_content = r#"{"data": "x"}"#.repeat(1000);
+        let record = RawJsonRecord {
+            path: "large.json".to_string(),
+            content: large_content.clone(),
+            size: large_content.len(),
+            content_hash: Some("sha256:abc".to_string()),
+            partition: Some("partition-1".to_string()),
+            ingested_at: Utc::now(),
+        };
+
+        assert_eq!(record.size, large_content.len());
     }
 
     #[test]
@@ -362,6 +402,45 @@ mod tests {
 
         assert_eq!(batch.batch_id, parsed.batch_id);
         assert_eq!(batch.record_count, parsed.record_count);
+        assert_eq!(batch.source, parsed.source);
+        assert!(parsed.completed_at.is_none());
+    }
+
+    #[test]
+    fn test_batch_metadata_completed() {
+        let started = Utc::now();
+        let completed = started + chrono::Duration::seconds(60);
+
+        let batch = BatchMetadata {
+            batch_id: "batch-002".to_string(),
+            started_at: started,
+            completed_at: Some(completed),
+            record_count: 500,
+            source: "s3://bucket/data/".to_string(),
+            partition: None,
+        };
+
+        let json = serde_json::to_string(&batch).unwrap();
+        let parsed: BatchMetadata = serde_json::from_str(&json).unwrap();
+
+        assert!(parsed.completed_at.is_some());
+        assert_eq!(parsed.record_count, 500);
+    }
+
+    #[test]
+    fn test_batch_metadata_property_key() {
+        let batch = BatchMetadata {
+            batch_id: "test-batch-123".to_string(),
+            started_at: Utc::now(),
+            completed_at: None,
+            record_count: 0,
+            source: "./".to_string(),
+            partition: None,
+        };
+
+        // Verify the key format used for table properties
+        let key = format!("batch.{}", batch.batch_id);
+        assert_eq!(key, "batch.test-batch-123");
     }
 
     #[test]
@@ -375,5 +454,67 @@ mod tests {
 
         let json = serde_json::to_string(&snapshot).unwrap();
         assert!(json.contains("12345"));
+        assert!(json.contains("12344"));
+        assert!(json.contains("added-records"));
+    }
+
+    #[test]
+    fn test_snapshot_info_root_snapshot() {
+        let snapshot = SnapshotInfo {
+            snapshot_id: 1,
+            timestamp: Utc::now(),
+            parent_id: None, // Root snapshot has no parent
+            summary: HashMap::from([
+                ("operation".to_string(), "append".to_string()),
+                ("added-records".to_string(), "1000".to_string()),
+                ("added-data-files".to_string(), "5".to_string()),
+            ]),
+        };
+
+        let json = serde_json::to_string(&snapshot).unwrap();
+        let parsed: SnapshotInfo = serde_json::from_str(&json).unwrap();
+
+        assert!(parsed.parent_id.is_none());
+        assert_eq!(parsed.summary.get("operation"), Some(&"append".to_string()));
+    }
+
+    #[test]
+    fn test_snapshot_info_chain() {
+        // Test a chain of snapshots
+        let snapshots = vec![
+            SnapshotInfo {
+                snapshot_id: 1,
+                timestamp: Utc::now(),
+                parent_id: None,
+                summary: HashMap::new(),
+            },
+            SnapshotInfo {
+                snapshot_id: 2,
+                timestamp: Utc::now(),
+                parent_id: Some(1),
+                summary: HashMap::new(),
+            },
+            SnapshotInfo {
+                snapshot_id: 3,
+                timestamp: Utc::now(),
+                parent_id: Some(2),
+                summary: HashMap::new(),
+            },
+        ];
+
+        // Verify parent chain
+        assert!(snapshots[0].parent_id.is_none());
+        assert_eq!(snapshots[1].parent_id, Some(1));
+        assert_eq!(snapshots[2].parent_id, Some(2));
+    }
+
+    #[test]
+    fn test_table_identifier_from_catalog() {
+        use crate::staging::catalog::TableIdentifier;
+
+        let id = TableIdentifier::new("staging", "raw_json");
+        assert_eq!(id.namespace, "staging");
+        assert_eq!(id.name, "raw_json");
+        assert_eq!(id.to_string(), "staging.raw_json");
     }
 }

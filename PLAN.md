@@ -275,20 +275,21 @@ Implement automatic JSON schema inference from staged data.
 - Handles nested objects and arrays
 - Merges/evolves schemas across records
 
-### Phase 3: Apache Iceberg Integration
+### Phase 3: Apache Iceberg Integration ✅
 **Duration:** 2 weeks
 **Dependencies:** Phase 1, Phase 2
+**Status:** Core Implementation Complete (2026-01-11)
 
 Replace DuckDB-only staging with Apache Iceberg for Parquet storage, time travel, and cloud catalog support.
 
-1. Add iceberg-rust dependencies (`iceberg`, `iceberg-catalog-rest`, `iceberg-datafusion`, `datafusion`)
-2. Create catalog abstraction supporting REST (Lakekeeper), S3 Tables, Unity Catalog, Glue
-3. Migrate `staged_json` table to Iceberg table with Parquet storage
-4. Use Iceberg table properties for batch tracking (replaces DuckDB batch table)
-5. Add time travel query support (by version and timestamp)
-6. Create schema-inferenced views over raw_json (validates without data movement)
-7. Implement export to production catalogs (Unity Catalog, Glue, S3 Tables)
-8. Maintain DuckDB query layer for manual inspection via Iceberg extension
+1. ✅ Add iceberg-rust dependencies (`iceberg = "0.7"`, `iceberg-catalog-rest = "0.7"`)
+2. ✅ Create catalog abstraction supporting REST (Lakekeeper), S3 Tables, Unity Catalog, Glue
+3. ✅ Create `IcebergTable` for raw JSON staging with schema definition
+4. ✅ Use Iceberg table properties for batch tracking (replaces DuckDB batch table)
+5. ✅ Add time travel query support (by version and timestamp)
+6. ✅ Create schema-inferenced views over raw_json (validates without data movement)
+7. ✅ Implement export CLI commands for production catalogs (Unity Catalog, Glue, S3 Tables)
+8. 🔄 DuckDB Iceberg extension integration (deferred - manual inspection via Iceberg API)
 
 **Architecture:**
 ```
