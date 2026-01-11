@@ -64,6 +64,7 @@ postgres-backend = ["data-modelling-core/postgres-backend"]
 staging = ["data-modelling-core/staging"]
 staging-postgres = ["data-modelling-core/staging-postgres"]
 inference = ["data-modelling-core/inference"]
+iceberg = ["data-modelling-core/iceberg"]
 
 # Full CLI with all features
 cli-full = ["duckdb-backend", "staging", "inference"]

@@ -32,9 +32,11 @@ use commands::inference::{
 use commands::query::{QueryArgs, handle_query};
 #[cfg(feature = "staging")]
 use commands::staging::{
-    StagingBatchesArgs, StagingIngestArgs, StagingInitArgs, StagingQueryArgs, StagingSampleArgs,
-    StagingStatsArgs, handle_staging_batches, handle_staging_ingest, handle_staging_init,
-    handle_staging_query, handle_staging_sample, handle_staging_stats,
+    StagingBatchesArgs, StagingExportArgs, StagingHistoryArgs, StagingIngestArgs, StagingInitArgs,
+    StagingQueryArgs, StagingSampleArgs, StagingStatsArgs, StagingViewCreateArgs,
+    handle_staging_batches, handle_staging_export, handle_staging_history, handle_staging_ingest,
+    handle_staging_init, handle_staging_query, handle_staging_sample, handle_staging_stats,
+    handle_staging_view_create,
 };
 use commands::validate::handle_validate;
 #[cfg(feature = "staging")]
@@ -179,6 +181,27 @@ enum StagingCommands {
         /// Path to the staging database file
         #[arg(default_value = "staging.duckdb")]
         database: PathBuf,
+        /// Catalog type for Iceberg backend (rest, s3-tables, unity, glue)
+        #[arg(long)]
+        catalog: Option<String>,
+        /// Catalog endpoint URL (for REST, Unity)
+        #[arg(long)]
+        endpoint: Option<String>,
+        /// Warehouse path for local storage
+        #[arg(long)]
+        warehouse: Option<PathBuf>,
+        /// Authentication token (for REST, Unity)
+        #[arg(long)]
+        token: Option<String>,
+        /// AWS/GCP region (for S3 Tables, Glue)
+        #[arg(long)]
+        region: Option<String>,
+        /// S3 Tables ARN
+        #[arg(long)]
+        arn: Option<String>,
+        /// AWS profile name
+        #[arg(long)]
+        profile: Option<String>,
     },
 
     /// Ingest JSON/JSONL files into the staging database
@@ -238,6 +261,12 @@ enum StagingCommands {
         /// Output format (table, json)
         #[arg(short, long, default_value = "table")]
         format: String,
+        /// Query specific table version (time travel, requires Iceberg)
+        #[arg(long)]
+        version: Option<i64>,
+        /// Query as of timestamp (time travel, ISO 8601, requires Iceberg)
+        #[arg(long)]
+        timestamp: Option<String>,
     },
 
     /// Get sample records from staging database
@@ -251,6 +280,79 @@ enum StagingCommands {
         /// Partition to sample from
         #[arg(short = 'k', long)]
         partition: Option<String>,
+    },
+
+    /// Show table version history (requires Iceberg)
+    History {
+        /// Path to the staging database file
+        #[arg(short, long, default_value = "staging.duckdb")]
+        database: PathBuf,
+        /// Table name to show history for
+        #[arg(short, long)]
+        table: Option<String>,
+        /// Maximum number of snapshots to show
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+    },
+
+    /// Export table to production catalog (requires Iceberg)
+    Export {
+        /// Path to the staging database file
+        #[arg(short, long, default_value = "staging.duckdb")]
+        database: PathBuf,
+        /// Target catalog type (unity, glue, s3-tables)
+        #[arg(long)]
+        target: String,
+        /// Target catalog endpoint (for Unity)
+        #[arg(long)]
+        endpoint: Option<String>,
+        /// Target catalog name (for Unity)
+        #[arg(long)]
+        catalog: Option<String>,
+        /// Target schema/database name
+        #[arg(long)]
+        schema: Option<String>,
+        /// Target table name
+        #[arg(long)]
+        table: String,
+        /// AWS/GCP region
+        #[arg(long)]
+        region: Option<String>,
+        /// S3 Tables ARN
+        #[arg(long)]
+        arn: Option<String>,
+        /// AWS profile name
+        #[arg(long)]
+        profile: Option<String>,
+        /// Authentication token (for Unity)
+        #[arg(long)]
+        token: Option<String>,
+    },
+
+    /// Create a typed view from inferred schema
+    View {
+        #[command(subcommand)]
+        command: StagingViewCommands,
+    },
+}
+
+#[cfg(feature = "staging")]
+#[derive(Subcommand)]
+enum StagingViewCommands {
+    /// Create a view from inferred schema
+    Create {
+        /// Path to the staging database file
+        #[arg(short, long, default_value = "staging.duckdb")]
+        database: PathBuf,
+        /// View name
+        #[arg(short, long)]
+        name: String,
+        /// Inferred schema file path (JSON or YAML)
+        #[arg(short, long)]
+        schema: PathBuf,
+        /// Source table name (default: staged_json)
+        #[arg(long)]
+        source_table: Option<String>,
     },
 }
 
@@ -638,8 +740,26 @@ fn main() {
 
         #[cfg(feature = "staging")]
         Commands::Staging { command } => match command {
-            StagingCommands::Init { database } => {
-                let args = StagingInitArgs { database };
+            StagingCommands::Init {
+                database,
+                catalog,
+                endpoint,
+                warehouse,
+                token,
+                region,
+                arn,
+                profile,
+            } => {
+                let args = StagingInitArgs {
+                    database,
+                    catalog,
+                    endpoint,
+                    warehouse,
+                    token,
+                    region,
+                    arn,
+                    profile,
+                };
                 handle_staging_init(&args)
             }
             StagingCommands::Ingest {
@@ -682,11 +802,15 @@ fn main() {
                 database,
                 sql,
                 format,
+                version,
+                timestamp,
             } => {
                 let args = StagingQueryArgs {
                     database,
                     sql,
                     format,
+                    version,
+                    timestamp,
                 };
                 handle_staging_query(&args)
             }
@@ -702,6 +826,60 @@ fn main() {
                 };
                 handle_staging_sample(&args)
             }
+            StagingCommands::History {
+                database,
+                table,
+                limit,
+            } => {
+                let args = StagingHistoryArgs {
+                    database,
+                    table,
+                    limit,
+                };
+                handle_staging_history(&args)
+            }
+            StagingCommands::Export {
+                database,
+                target,
+                endpoint,
+                catalog,
+                schema,
+                table,
+                region,
+                arn,
+                profile,
+                token,
+            } => {
+                let args = StagingExportArgs {
+                    database,
+                    target,
+                    endpoint,
+                    catalog,
+                    schema,
+                    table,
+                    region,
+                    arn,
+                    profile,
+                    token,
+                };
+                handle_staging_export(&args)
+            }
+            StagingCommands::View { command } => match command {
+                StagingViewCommands::Create {
+                    database,
+                    name,
+                    schema,
+                    source_table,
+                } => {
+                    let args = StagingViewCreateArgs {
+                        database,
+                        name,
+                        schema,
+                        source_table,
+                    };
+                    handle_staging_view_create(&args)
+                }
+            },
         },
 
         #[cfg(all(feature = "inference", feature = "staging"))]

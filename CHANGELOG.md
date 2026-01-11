@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **feat(iceberg)**: Apache Iceberg integration for data lakehouse staging (Phase 3)
+  - New `iceberg` feature flag for optional Iceberg support
+  - Catalog abstraction supporting REST (Lakekeeper/Nessie/Polaris), S3 Tables, Unity Catalog, and Glue
+  - `CatalogConfig` enum with serializable configuration for all catalog types
+  - `IcebergCatalog` wrapper with async operations for namespace and table management
+  - `IcebergTable` for raw JSON staging with time travel support
+  - Snapshot listing and time travel queries by version or timestamp
+  - Batch metadata storage in Iceberg table properties
+  - New CLI commands:
+    - `odm staging init --catalog <type>` - Initialize with Iceberg catalog (rest, s3-tables, unity, glue)
+    - `odm staging history` - Show table version history
+    - `odm staging query --version N` - Time travel queries by snapshot version
+    - `odm staging query --timestamp <ISO8601>` - Time travel queries by timestamp
+    - `odm staging export --target <unity|glue|s3-tables>` - Export to production catalogs
+    - `odm staging view create` - Create typed views from inferred schemas
+
 ### Changed
 
 - **refactor(workspace)**: Restructured monolithic crate into Cargo workspace with three sub-crates

@@ -33,18 +33,28 @@
 //! ```
 
 mod batch;
+#[cfg(feature = "iceberg")]
+pub mod catalog;
 mod config;
 mod db;
 mod error;
+#[cfg(feature = "iceberg")]
+pub mod iceberg_table;
 mod ingest;
 mod schema;
 
 pub use batch::{BatchStatus, ProcessingBatch};
+#[cfg(feature = "iceberg")]
+pub use catalog::{
+    CatalogConfig, CatalogError, CatalogOperations, IcebergCatalog, TableIdentifier, TableInfo,
+};
 pub use config::{DedupStrategy, IngestConfig, IngestConfigBuilder, SourceType};
 #[cfg(feature = "duckdb-backend")]
 pub use db::StagingDb;
 #[cfg(feature = "postgres-backend")]
 pub use db::StagingDbPostgres;
 pub use error::{IngestError, StagingError};
+#[cfg(feature = "iceberg")]
+pub use iceberg_table::IcebergTable;
 pub use ingest::IngestStats;
 pub use schema::StagingSchema;
