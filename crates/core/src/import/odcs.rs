@@ -255,11 +255,33 @@ impl ODCSImporter {
             quality: table.quality.clone(),
             price: json_data.get("price").cloned(),
             tags: table.tags.iter().map(|t| t.to_string()).collect(),
-            custom_properties: json_data
-                .get("customProperties")
-                .and_then(|v| v.as_array())
-                .cloned()
-                .unwrap_or_default(),
+            // Merge contract-level and schema-level customProperties
+            custom_properties: {
+                let mut props = json_data
+                    .get("customProperties")
+                    .and_then(|v| v.as_array())
+                    .cloned()
+                    .unwrap_or_default();
+                // Add schema-level customProperties if present in odcl_metadata
+                if let Some(schema_props) = table.odcl_metadata.get("schemaCustomProperties")
+                    && let Some(schema_arr) = schema_props.as_array()
+                {
+                    for prop in schema_arr {
+                        // Avoid duplicates by checking if property already exists
+                        let prop_name = prop.get("property").and_then(|v| v.as_str()).unwrap_or("");
+                        let already_exists = props.iter().any(|p| {
+                            p.get("property")
+                                .and_then(|v| v.as_str())
+                                .map(|n| n == prop_name)
+                                .unwrap_or(false)
+                        });
+                        if !already_exists {
+                            props.push(prop.clone());
+                        }
+                    }
+                }
+                props
+            },
             authoritative_definitions: json_data
                 .get("authoritativeDefinitions")
                 .and_then(|v| v.as_array())
@@ -2098,6 +2120,14 @@ impl ODCSImporter {
                 odcl_metadata.insert(
                     "schemaRelationships".to_string(),
                     json_value_to_serde_value(relationships),
+                );
+            }
+
+            // customProperties at schema object level (ODCS v3.1.0)
+            if let Some(custom_props) = schema_object.get("customProperties") {
+                odcl_metadata.insert(
+                    "schemaCustomProperties".to_string(),
+                    json_value_to_serde_value(custom_props),
                 );
             }
 

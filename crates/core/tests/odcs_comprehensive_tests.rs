@@ -854,3 +854,349 @@ definitions:
         );
     }
 }
+
+/// Tests for customProperties preservation at all levels (Issue #60)
+mod custom_properties_tests {
+    use super::*;
+
+    #[test]
+    fn test_contract_level_custom_properties() {
+        let yaml = r#"
+apiVersion: v3.1.0
+kind: DataContract
+id: 550e8400-e29b-41d4-a716-446655440000
+version: 1.0.0
+name: test_contract
+status: active
+customProperties:
+  - property: contractOwner
+    value: data-team
+  - property: costCenter
+    value: CC-1234
+schema:
+  - name: users
+    properties:
+      - name: id
+        logicalType: integer
+"#;
+        let mut importer = ODCSImporter::new();
+        let result = importer.import(yaml).unwrap();
+        assert_eq!(result.tables.len(), 1);
+
+        let table = &result.tables[0];
+        assert_eq!(table.status.as_deref(), Some("active"));
+        assert!(
+            !table.custom_properties.is_empty(),
+            "Contract-level customProperties should be preserved"
+        );
+
+        // Verify specific custom properties
+        let has_contract_owner = table.custom_properties.iter().any(|p| {
+            p.get("property").and_then(|v| v.as_str()) == Some("contractOwner")
+                && p.get("value").and_then(|v| v.as_str()) == Some("data-team")
+        });
+        assert!(
+            has_contract_owner,
+            "contractOwner customProperty should be present"
+        );
+
+        let has_cost_center = table.custom_properties.iter().any(|p| {
+            p.get("property").and_then(|v| v.as_str()) == Some("costCenter")
+                && p.get("value").and_then(|v| v.as_str()) == Some("CC-1234")
+        });
+        assert!(
+            has_cost_center,
+            "costCenter customProperty should be present"
+        );
+    }
+
+    #[test]
+    fn test_schema_level_custom_properties() {
+        let yaml = r#"
+apiVersion: v3.1.0
+kind: DataContract
+id: 550e8400-e29b-41d4-a716-446655440000
+version: 1.0.0
+name: test_contract
+schema:
+  - name: orders
+    customProperties:
+      - property: displayOrder
+        value: 1
+      - property: tableCategory
+        value: transactional
+    properties:
+      - name: order_id
+        logicalType: string
+"#;
+        let mut importer = ODCSImporter::new();
+        let result = importer.import(yaml).unwrap();
+        assert_eq!(result.tables.len(), 1);
+
+        let table = &result.tables[0];
+        assert!(
+            !table.custom_properties.is_empty(),
+            "Schema-level customProperties should be preserved"
+        );
+
+        // Verify schema-level custom properties
+        let has_display_order = table
+            .custom_properties
+            .iter()
+            .any(|p| p.get("property").and_then(|v| v.as_str()) == Some("displayOrder"));
+        assert!(
+            has_display_order,
+            "displayOrder customProperty should be present at schema level"
+        );
+
+        let has_table_category = table.custom_properties.iter().any(|p| {
+            p.get("property").and_then(|v| v.as_str()) == Some("tableCategory")
+                && p.get("value").and_then(|v| v.as_str()) == Some("transactional")
+        });
+        assert!(
+            has_table_category,
+            "tableCategory customProperty should be present at schema level"
+        );
+    }
+
+    #[test]
+    fn test_column_level_custom_properties() {
+        let yaml = r#"
+apiVersion: v3.1.0
+kind: DataContract
+id: 550e8400-e29b-41d4-a716-446655440000
+version: 1.0.0
+name: test_contract
+schema:
+  - name: users
+    properties:
+      - name: user_id
+        logicalType: integer
+        customProperties:
+          - property: uiOrder
+            value: 1
+          - property: foreignKeyRef
+            value: "accounts.id"
+"#;
+        let mut importer = ODCSImporter::new();
+        let result = importer.import(yaml).unwrap();
+        assert_eq!(result.tables.len(), 1);
+
+        let table = &result.tables[0];
+        assert_eq!(table.columns.len(), 1);
+
+        let column = &table.columns[0];
+        assert!(
+            !column.custom_properties.is_empty(),
+            "Column-level customProperties should be preserved"
+        );
+
+        // Verify column-level custom properties
+        assert!(
+            column.custom_properties.contains_key("uiOrder"),
+            "uiOrder customProperty should be present"
+        );
+        assert!(
+            column.custom_properties.contains_key("foreignKeyRef"),
+            "foreignKeyRef customProperty should be present"
+        );
+
+        // Check values
+        assert_eq!(
+            column
+                .custom_properties
+                .get("foreignKeyRef")
+                .and_then(|v| v.as_str()),
+            Some("accounts.id"),
+            "foreignKeyRef value should be 'accounts.id'"
+        );
+    }
+
+    #[test]
+    fn test_all_levels_custom_properties_combined() {
+        let yaml = r#"
+apiVersion: v3.1.0
+kind: DataContract
+id: 550e8400-e29b-41d4-a716-446655440000
+version: 1.0.0
+name: comprehensive_contract
+status: draft
+customProperties:
+  - property: contractOwner
+    value: platform-team
+schema:
+  - name: transactions
+    customProperties:
+      - property: schemaOwner
+        value: finance-team
+      - property: retentionDays
+        value: 365
+    properties:
+      - name: txn_id
+        logicalType: string
+        required: true
+        customProperties:
+          - property: columnOrder
+            value: 1
+          - property: isSensitive
+            value: false
+      - name: amount
+        logicalType: decimal
+        customProperties:
+          - property: columnOrder
+            value: 2
+          - property: precision
+            value: 18
+"#;
+        let mut importer = ODCSImporter::new();
+        let result = importer.import(yaml).unwrap();
+        assert_eq!(result.tables.len(), 1);
+
+        let table = &result.tables[0];
+
+        // Contract-level status
+        assert_eq!(
+            table.status.as_deref(),
+            Some("draft"),
+            "Contract status should be 'draft'"
+        );
+
+        // Contract + schema level customProperties should be merged
+        assert!(
+            table.custom_properties.len() >= 2,
+            "Should have at least contract + schema customProperties"
+        );
+
+        // Contract-level property
+        let has_contract_owner = table
+            .custom_properties
+            .iter()
+            .any(|p| p.get("property").and_then(|v| v.as_str()) == Some("contractOwner"));
+        assert!(
+            has_contract_owner,
+            "Contract-level contractOwner should be present"
+        );
+
+        // Schema-level property
+        let has_schema_owner = table
+            .custom_properties
+            .iter()
+            .any(|p| p.get("property").and_then(|v| v.as_str()) == Some("schemaOwner"));
+        assert!(
+            has_schema_owner,
+            "Schema-level schemaOwner should be present"
+        );
+
+        // Column-level properties
+        assert_eq!(table.columns.len(), 2);
+
+        let txn_col = table
+            .columns
+            .iter()
+            .find(|c| c.name == "txn_id")
+            .expect("txn_id column should exist");
+        assert!(
+            txn_col.custom_properties.contains_key("columnOrder"),
+            "txn_id should have columnOrder"
+        );
+        assert!(
+            txn_col.custom_properties.contains_key("isSensitive"),
+            "txn_id should have isSensitive"
+        );
+
+        let amount_col = table
+            .columns
+            .iter()
+            .find(|c| c.name == "amount")
+            .expect("amount column should exist");
+        assert!(
+            amount_col.custom_properties.contains_key("precision"),
+            "amount should have precision"
+        );
+    }
+
+    #[test]
+    fn test_multi_table_schema_custom_properties() {
+        let yaml = r#"
+apiVersion: v3.1.0
+kind: DataContract
+id: 550e8400-e29b-41d4-a716-446655440000
+version: 1.0.0
+name: multi_table_contract
+customProperties:
+  - property: globalProp
+    value: shared
+schema:
+  - name: table_a
+    customProperties:
+      - property: tableAProp
+        value: value_a
+    properties:
+      - name: id
+        logicalType: integer
+  - name: table_b
+    customProperties:
+      - property: tableBProp
+        value: value_b
+    properties:
+      - name: id
+        logicalType: integer
+"#;
+        let mut importer = ODCSImporter::new();
+        let result = importer.import(yaml).unwrap();
+        assert_eq!(result.tables.len(), 2, "Should have 2 tables");
+
+        // Table A should have globalProp + tableAProp
+        let table_a = result
+            .tables
+            .iter()
+            .find(|t| t.name.as_deref() == Some("table_a"))
+            .expect("table_a should exist");
+        let has_global_prop_a = table_a
+            .custom_properties
+            .iter()
+            .any(|p| p.get("property").and_then(|v| v.as_str()) == Some("globalProp"));
+        let has_table_a_prop = table_a
+            .custom_properties
+            .iter()
+            .any(|p| p.get("property").and_then(|v| v.as_str()) == Some("tableAProp"));
+        assert!(
+            has_global_prop_a,
+            "table_a should have globalProp from contract level"
+        );
+        assert!(
+            has_table_a_prop,
+            "table_a should have tableAProp from schema level"
+        );
+
+        // Table B should have globalProp + tableBProp
+        let table_b = result
+            .tables
+            .iter()
+            .find(|t| t.name.as_deref() == Some("table_b"))
+            .expect("table_b should exist");
+        let has_global_prop_b = table_b
+            .custom_properties
+            .iter()
+            .any(|p| p.get("property").and_then(|v| v.as_str()) == Some("globalProp"));
+        let has_table_b_prop = table_b
+            .custom_properties
+            .iter()
+            .any(|p| p.get("property").and_then(|v| v.as_str()) == Some("tableBProp"));
+        assert!(
+            has_global_prop_b,
+            "table_b should have globalProp from contract level"
+        );
+        assert!(
+            has_table_b_prop,
+            "table_b should have tableBProp from schema level"
+        );
+
+        // table_a should NOT have tableBProp
+        let has_wrong_prop = table_a
+            .custom_properties
+            .iter()
+            .any(|p| p.get("property").and_then(|v| v.as_str()) == Some("tableBProp"));
+        assert!(!has_wrong_prop, "table_a should NOT have tableBProp");
+    }
+}
