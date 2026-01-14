@@ -149,7 +149,7 @@ jobs:
           cd crates/core
           cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
           echo "Waiting for crates.io to index the package..."
-          sleep 30
+          sleep 60
 
       - name: Publish data-modelling-sdk to crates.io
         run: |
