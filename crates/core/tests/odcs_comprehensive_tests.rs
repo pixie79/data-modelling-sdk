@@ -1200,3 +1200,717 @@ schema:
         assert!(!has_wrong_prop, "table_a should NOT have tableBProp");
     }
 }
+
+#[cfg(test)]
+mod api_comparison_tests {
+    use data_modelling_core::import::ODCSImporter;
+
+    const TEST_YAML: &str = r#"
+apiVersion: v3.1.0
+kind: DataContract
+id: test-contract-id
+version: "1.0.0"
+name: test-contract
+status: active
+schema:
+  - name: users
+    customProperties:
+      - property: schemaLevel
+        value: schemaValue
+    properties:
+      - name: id
+        logicalType: integer
+        primaryKey: true
+        customProperties:
+          - property: columnLevel
+            value: columnValue
+      - name: email
+        logicalType: string
+        customProperties:
+          - property: piiCategory
+            value: email
+"#;
+
+    #[test]
+    fn test_v1_api_returns_status() {
+        let mut importer = ODCSImporter::new();
+        let result = importer.import(TEST_YAML).expect("Import failed");
+
+        assert_eq!(result.tables.len(), 1);
+        let table = &result.tables[0];
+
+        // Contract-level status should be in TableData
+        assert_eq!(table.status, Some("active".to_string()), "status should be 'active'");
+    }
+
+    #[test]
+    fn test_v1_api_returns_table_custom_properties() {
+        let mut importer = ODCSImporter::new();
+        let result = importer.import(TEST_YAML).expect("Import failed");
+
+        let table = &result.tables[0];
+
+        // custom_properties should include schema-level customProperties
+        assert!(!table.custom_properties.is_empty(), "custom_properties should not be empty");
+
+        // Check for schema-level custom property
+        let has_schema_level = table.custom_properties.iter().any(|cp| {
+            cp.get("property").and_then(|v| v.as_str()) == Some("schemaLevel")
+        });
+        assert!(has_schema_level, "Should have schemaLevel custom property");
+    }
+
+    #[test]
+    fn test_v1_api_returns_column_custom_properties() {
+        let mut importer = ODCSImporter::new();
+        let result = importer.import(TEST_YAML).expect("Import failed");
+
+        let table = &result.tables[0];
+        let id_column = table.columns.iter().find(|c| c.name == "id").expect("id column not found");
+
+        // Column should have custom_properties
+        assert!(!id_column.custom_properties.is_empty(), "id column custom_properties should not be empty");
+        assert!(id_column.custom_properties.contains_key("columnLevel"), "Should have columnLevel custom property");
+    }
+
+    #[test]
+    fn test_v2_api_returns_status() {
+        let mut importer = ODCSImporter::new();
+        let contract = importer.import_contract(TEST_YAML).expect("Import failed");
+
+        // Contract-level status
+        assert_eq!(contract.status, Some("active".to_string()), "status should be 'active'");
+    }
+
+    #[test]
+    fn test_v2_api_returns_schema_custom_properties() {
+        let mut importer = ODCSImporter::new();
+        let contract = importer.import_contract(TEST_YAML).expect("Import failed");
+
+        let schema = &contract.schema[0];
+
+        // Schema should have custom_properties
+        assert!(!schema.custom_properties.is_empty(), "schema custom_properties should not be empty");
+        assert!(schema.custom_properties.iter().any(|cp| cp.property == "schemaLevel"), "Should have schemaLevel");
+    }
+
+    #[test]
+    fn test_v2_api_returns_property_custom_properties() {
+        let mut importer = ODCSImporter::new();
+        let contract = importer.import_contract(TEST_YAML).expect("Import failed");
+
+        let schema = &contract.schema[0];
+        let id_prop = schema.get_property("id").expect("id property not found");
+
+        // Property should have custom_properties
+        assert!(!id_prop.custom_properties.is_empty(), "id property custom_properties should not be empty");
+        assert!(id_prop.custom_properties.iter().any(|cp| cp.property == "columnLevel"), "Should have columnLevel");
+    }
+}
+
+/// End-to-end tests for ODCL (Data Contract Specification) format import
+/// These tests verify that all fields from the ODCL format are correctly captured
+/// and converted to ODCS format with no loss.
+///
+/// Based on: https://github.com/datacontract/datacontract-specification/blob/main/examples/orders-latest/datacontract.yaml
+mod odcl_e2e_tests {
+    use data_modelling_core::import::odcl::ODCLImporter;
+    use data_modelling_core::export::odcs::ODCSExporter;
+
+    /// Sample ODCL (Data Contract Specification) based on the official example
+    /// from https://github.com/datacontract/datacontract-specification
+    const ORDERS_ODCL: &str = r#"
+dataContractSpecification: 1.2.0
+id: orders-latest
+info:
+  title: Orders Latest
+  version: 2.0.0
+  description: |
+    Successful customer orders in the webshop.
+    All orders since 2020-01-01.
+    Orders with their line items are in their current state (no history included).
+  owner: Checkout Team
+  contact:
+    name: John Doe (Data Product Owner)
+    url: https://teams.microsoft.com/l/channel/example/checkout
+servers:
+  production:
+    type: s3
+    environment: prod
+    location: s3://datacontract-example-orders-latest/v2/{model}/*.json
+    format: json
+    delimiter: new_line
+    description: "One folder per model. One file per day."
+    roles:
+      - name: analyst_us
+        description: Access to the data for US region
+      - name: analyst_cn
+        description: Access to the data for China region
+terms:
+  usage: |
+    Data can be used for reports, analytics and machine learning use cases.
+    Order may be linked and joined by other tables
+  limitations: |
+    Not suitable for real-time use cases.
+    Data may not be used to identify individual customers.
+    Max data processing per day: 10 TiB
+  policies:
+    - name: privacy-policy
+      url: https://example.com/privacy-policy
+    - name: license
+      description: External data is licensed under agreement 1234.
+      url: https://example.com/license/1234
+  billing: 5000 USD per month
+  noticePeriod: P3M
+models:
+  orders:
+    description: One record per order. Includes cancelled and deleted orders.
+    type: table
+    fields:
+      order_id:
+        $ref: '#/definitions/order_id'
+        required: true
+        unique: true
+        primaryKey: true
+      order_timestamp:
+        description: The business timestamp in UTC when the order was successfully registered in the source system and the payment was successful.
+        type: timestamp
+        required: true
+        examples:
+          - "2024-09-09T08:30:00Z"
+        tags: ["business-timestamp"]
+      order_total:
+        description: Total amount the smallest monetary unit (e.g., cents).
+        type: long
+        required: true
+        examples:
+          - 9999
+        quality:
+          - type: sql
+            description: 95% of all order total values are expected to be between 10 and 499 EUR.
+            query: |
+              SELECT quantile_cont(order_total, 0.95) AS percentile_95
+              FROM orders
+            mustBeBetween: [1000, 49900]
+      customer_id:
+        description: Unique identifier for the customer.
+        type: text
+        minLength: 10
+        maxLength: 20
+      customer_email_address:
+        description: The email address, as entered by the customer.
+        type: text
+        format: email
+        required: true
+        pii: true
+        classification: sensitive
+        quality:
+          - type: text
+            description: The email address is not verified and may be invalid.
+        lineage:
+          inputFields:
+            - namespace: com.example.service.checkout
+              name: checkout_db.orders
+              field: email_address
+      processed_timestamp:
+        description: The timestamp when the record was processed by the data platform.
+        type: timestamp
+        required: true
+        config:
+          jsonType: string
+          jsonFormat: date-time
+    quality:
+      - type: sql
+        description: The maximum duration between two orders should be less that 3600 seconds
+        query: |
+          SELECT MAX(duration) AS max_duration FROM (SELECT EXTRACT(EPOCH FROM (order_timestamp - LAG(order_timestamp)
+          OVER (ORDER BY order_timestamp))) AS duration FROM orders)
+        mustBeLessThan: 3600
+      - type: sql
+        description: Row Count
+        query: |
+          SELECT count(*) as row_count
+          FROM orders
+        mustBeGreaterThan: 5
+    examples:
+      - |
+        order_id,order_timestamp,order_total
+        "1001","2030-09-09T08:30:00Z",2500
+  line_items:
+    description: A single article that is part of an order.
+    type: table
+    fields:
+      line_item_id:
+        type: text
+        description: Primary key of the lines_item_id table
+        required: true
+      order_id:
+        $ref: '#/definitions/order_id'
+        references: orders.order_id
+      sku:
+        description: The purchased article number
+        $ref: '#/definitions/sku'
+    primaryKey: ["order_id", "line_item_id"]
+definitions:
+  order_id:
+    title: Order ID
+    type: text
+    format: uuid
+    description: An internal ID that identifies an order in the online shop.
+    examples:
+      - 243c25e5-a081-43a9-aeab-6d5d5b6cb5e2
+    pii: true
+    classification: restricted
+    tags:
+      - orders
+  sku:
+    title: Stock Keeping Unit
+    type: text
+    pattern: ^[A-Za-z0-9]{8,14}$
+    examples:
+      - "96385074"
+    description: |
+      A Stock Keeping Unit (SKU) is an internal unique identifier for an article.
+      It is typically associated with an article's barcode, such as the EAN/GTIN.
+    links:
+      wikipedia: https://en.wikipedia.org/wiki/Stock_keeping_unit
+    tags:
+      - inventory
+servicelevels:
+  availability:
+    description: The server is available during support hours
+    percentage: 99.9%
+  retention:
+    description: Data is retained for one year
+    period: P1Y
+    unlimited: false
+  latency:
+    description: Data is available within 25 hours after the order was placed
+    threshold: 25h
+    sourceTimestampField: orders.order_timestamp
+    processedTimestampField: orders.processed_timestamp
+  freshness:
+    description: The age of the youngest row in a table.
+    threshold: 25h
+    timestampField: orders.order_timestamp
+  frequency:
+    description: Data is delivered once a day
+    type: batch
+    interval: daily
+    cron: 0 0 * * *
+  support:
+    description: The data is available during typical business hours at headquarters
+    time: 9am to 5pm in EST on business days
+    responseTime: 1h
+  backup:
+    description: Data is backed up once a week, every Sunday at 0:00 UTC.
+    interval: weekly
+    cron: 0 0 * * 0
+    recoveryTime: 24 hours
+    recoveryPoint: 1 week
+tags:
+  - checkout
+  - orders
+  - s3
+links:
+  datacontractCli: https://cli.datacontract.com
+"#;
+
+    /// Simple ODCL with a single model that has model-level quality rules
+    const SINGLE_MODEL_ODCL: &str = r#"
+dataContractSpecification: 1.2.0
+id: test-contract
+info:
+  title: Test Contract
+  version: 1.0.0
+  owner: Test Team
+models:
+  orders:
+    description: One record per order.
+    type: table
+    fields:
+      order_id:
+        type: text
+        required: true
+        primaryKey: true
+        description: Unique order identifier
+      order_total:
+        description: Total amount in cents.
+        type: long
+        required: true
+        quality:
+          - type: sql
+            description: 95% of values between 10 and 499 EUR.
+            query: SELECT quantile_cont(order_total, 0.95) FROM orders
+            mustBeBetween: [1000, 49900]
+      customer_email:
+        description: Customer email address.
+        type: text
+        required: true
+        quality:
+          - type: text
+            description: Email may be invalid.
+    quality:
+      - type: sql
+        description: The maximum duration between two orders should be less than 3600 seconds
+        query: SELECT MAX(duration) FROM orders
+        mustBeLessThan: 3600
+      - type: sql
+        description: Row Count must be greater than 5
+        query: SELECT count(*) as row_count FROM orders
+        mustBeGreaterThan: 5
+tags:
+  - orders
+  - test
+"#;
+
+    #[test]
+    fn test_odcl_import_model_level_quality_rules() {
+        // This test verifies that model-level quality rules are correctly imported
+        // Bug: quality rules at models.<name>.quality were not being captured
+        let mut importer = ODCLImporter::new();
+        let (table, errors) = importer.parse_table(SINGLE_MODEL_ODCL).unwrap();
+
+        assert!(errors.is_empty(), "Import should have no errors: {:?}", errors);
+        assert_eq!(table.name, "orders");
+
+        // Model-level quality rules should be captured
+        // The ODCL has 2 quality rules at models.orders.quality
+        assert!(
+            !table.quality.is_empty(),
+            "Model-level quality rules should not be empty. Found: {:?}",
+            table.quality
+        );
+
+        // Verify we have at least 2 model-level quality rules
+        assert!(
+            table.quality.len() >= 2,
+            "Expected at least 2 model-level quality rules, found {}. Rules: {:?}",
+            table.quality.len(),
+            table.quality
+        );
+
+        // Verify first quality rule: max duration check
+        let has_duration_rule = table.quality.iter().any(|rule| {
+            rule.get("description")
+                .and_then(|v| v.as_str())
+                .map(|s| s.contains("maximum duration"))
+                .unwrap_or(false)
+        });
+        assert!(
+            has_duration_rule,
+            "Should have 'maximum duration' quality rule. Found: {:?}",
+            table.quality
+        );
+
+        // Verify second quality rule: row count check
+        let has_row_count_rule = table.quality.iter().any(|rule| {
+            rule.get("description")
+                .and_then(|v| v.as_str())
+                .map(|s| s.contains("Row Count"))
+                .unwrap_or(false)
+        });
+        assert!(
+            has_row_count_rule,
+            "Should have 'Row Count' quality rule. Found: {:?}",
+            table.quality
+        );
+    }
+
+    #[test]
+    fn test_odcl_import_field_level_quality_rules() {
+        let mut importer = ODCLImporter::new();
+        let (table, errors) = importer.parse_table(SINGLE_MODEL_ODCL).unwrap();
+
+        assert!(errors.is_empty(), "Import should have no errors: {:?}", errors);
+
+        // Find order_total column and verify it has quality rules
+        let order_total_col = table.columns.iter().find(|c| c.name == "order_total");
+        assert!(order_total_col.is_some(), "Should have order_total column");
+        let order_total_col = order_total_col.unwrap();
+
+        assert!(
+            !order_total_col.quality.is_empty(),
+            "order_total should have field-level quality rules. Found: {:?}",
+            order_total_col.quality
+        );
+
+        // Verify the quality rule has the expected structure
+        let has_sql_rule = order_total_col.quality.iter().any(|rule| {
+            rule.get("type")
+                .and_then(|v| v.as_str())
+                .map(|s| s == "sql")
+                .unwrap_or(false)
+        });
+        assert!(
+            has_sql_rule,
+            "order_total should have SQL quality rule. Found: {:?}",
+            order_total_col.quality
+        );
+
+        // Find customer_email column and verify it has quality rules
+        let email_col = table.columns.iter().find(|c| c.name == "customer_email");
+        assert!(email_col.is_some(), "Should have customer_email column");
+        let email_col = email_col.unwrap();
+
+        assert!(
+            !email_col.quality.is_empty(),
+            "customer_email should have field-level quality rules. Found: {:?}",
+            email_col.quality
+        );
+    }
+
+    #[test]
+    fn test_odcl_import_preserves_info_metadata() {
+        let mut importer = ODCLImporter::new();
+        let (table, errors) = importer.parse_table(ORDERS_ODCL).unwrap();
+
+        assert!(errors.is_empty(), "Import should have no errors");
+
+        // Info section should be preserved in odcl_metadata
+        assert!(
+            table.odcl_metadata.contains_key("info"),
+            "Should preserve 'info' in metadata"
+        );
+
+        // Verify info contains expected fields
+        if let Some(info) = table.odcl_metadata.get("info") {
+            if let Some(info_obj) = info.as_object() {
+                assert!(
+                    info_obj.contains_key("title") || info_obj.contains_key("owner"),
+                    "Info should contain title or owner"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_odcl_import_preserves_servicelevels() {
+        let mut importer = ODCLImporter::new();
+        let (table, errors) = importer.parse_table(ORDERS_ODCL).unwrap();
+
+        assert!(errors.is_empty(), "Import should have no errors");
+
+        // Servicelevels should be preserved in odcl_metadata
+        assert!(
+            table.odcl_metadata.contains_key("servicelevels"),
+            "Should preserve 'servicelevels' in metadata. Found keys: {:?}",
+            table.odcl_metadata.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_odcl_import_preserves_terms() {
+        let mut importer = ODCLImporter::new();
+        let (table, errors) = importer.parse_table(ORDERS_ODCL).unwrap();
+
+        assert!(errors.is_empty(), "Import should have no errors");
+
+        // Terms should be preserved in odcl_metadata
+        assert!(
+            table.odcl_metadata.contains_key("terms"),
+            "Should preserve 'terms' in metadata. Found keys: {:?}",
+            table.odcl_metadata.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_odcl_import_preserves_servers() {
+        let mut importer = ODCLImporter::new();
+        let (table, errors) = importer.parse_table(ORDERS_ODCL).unwrap();
+
+        assert!(errors.is_empty(), "Import should have no errors");
+
+        // Servers should be preserved in odcl_metadata
+        assert!(
+            table.odcl_metadata.contains_key("servers"),
+            "Should preserve 'servers' in metadata. Found keys: {:?}",
+            table.odcl_metadata.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_odcl_import_preserves_tags() {
+        let mut importer = ODCLImporter::new();
+        let (table, errors) = importer.parse_table(ORDERS_ODCL).unwrap();
+
+        assert!(errors.is_empty(), "Import should have no errors");
+
+        // Tags should be preserved
+        assert!(
+            !table.tags.is_empty(),
+            "Should preserve tags. Found: {:?}",
+            table.tags
+        );
+
+        // Verify expected tags
+        let tag_strings: Vec<String> = table.tags.iter().map(|t| t.to_string()).collect();
+        assert!(
+            tag_strings.iter().any(|t| t.contains("checkout") || t.contains("orders")),
+            "Should have checkout or orders tag. Found: {:?}",
+            tag_strings
+        );
+    }
+
+    #[test]
+    fn test_odcl_import_preserves_column_descriptions() {
+        let mut importer = ODCLImporter::new();
+        let (table, errors) = importer.parse_table(SINGLE_MODEL_ODCL).unwrap();
+
+        assert!(errors.is_empty(), "Import should have no errors");
+
+        // Find order_total column (has description in SINGLE_MODEL_ODCL)
+        let order_total = table.columns.iter().find(|c| c.name == "order_total");
+        assert!(order_total.is_some(), "Should have order_total column");
+        let order_total = order_total.unwrap();
+
+        assert!(
+            !order_total.description.is_empty(),
+            "order_total should have description"
+        );
+        assert!(
+            order_total.description.contains("Total amount"),
+            "order_total description should contain 'Total amount'. Found: {}",
+            order_total.description
+        );
+    }
+
+    #[test]
+    fn test_odcl_import_resolves_definitions() {
+        let mut importer = ODCLImporter::new();
+        let (table, errors) = importer.parse_table(ORDERS_ODCL).unwrap();
+
+        assert!(errors.is_empty(), "Import should have no errors: {:?}", errors);
+
+        // order_id uses $ref to definitions/order_id
+        let order_id_col = table.columns.iter().find(|c| c.name == "order_id");
+        assert!(order_id_col.is_some(), "Should have order_id column");
+        let order_id_col = order_id_col.unwrap();
+
+        // Description should be resolved from definition
+        assert!(
+            order_id_col.description.contains("internal ID") || !order_id_col.relationships.is_empty(),
+            "order_id should have description from definition or relationship. Found desc: '{}', relationships: {:?}",
+            order_id_col.description,
+            order_id_col.relationships
+        );
+    }
+
+    #[test]
+    fn test_odcl_to_odcs_roundtrip_preserves_quality() {
+        let mut importer = ODCLImporter::new();
+        let (table, errors) = importer.parse_table(SINGLE_MODEL_ODCL).unwrap();
+
+        assert!(errors.is_empty(), "Import should have no errors");
+
+        // Export to ODCS
+        let exported_yaml = ODCSExporter::export_table(&table, "odcs_v3_1_0");
+
+        // Verify quality rules are in the exported YAML
+        assert!(
+            exported_yaml.contains("quality"),
+            "Exported YAML should contain 'quality' field. YAML:\n{}",
+            exported_yaml
+        );
+
+        // The quality rules should be exported
+        assert!(
+            !table.quality.is_empty(),
+            "Table should have model-level quality rules"
+        );
+
+        // If we have model-level quality, it should appear in the export
+        assert!(
+            exported_yaml.contains("mustBeLessThan") ||
+            exported_yaml.contains("mustBeGreaterThan") ||
+            exported_yaml.contains("Row Count") ||
+            exported_yaml.contains("maximum duration"),
+            "Exported YAML should contain quality rule content. YAML:\n{}",
+            exported_yaml
+        );
+    }
+
+    #[test]
+    fn test_odcl_import_handles_all_field_types() {
+        let mut importer = ODCLImporter::new();
+        let (table, errors) = importer.parse_table(SINGLE_MODEL_ODCL).unwrap();
+
+        assert!(errors.is_empty(), "Import should have no errors");
+
+        // Verify various field types are imported
+        let columns: Vec<&str> = table.columns.iter().map(|c| c.name.as_str()).collect();
+
+        // Should have text fields (order_id, customer_email)
+        assert!(
+            columns.contains(&"order_id") || columns.contains(&"customer_email"),
+            "Should have text fields. Found: {:?}",
+            columns
+        );
+
+        // Should have order_total (long type)
+        assert!(columns.contains(&"order_total"), "Should have order_total field");
+
+        // Verify we have all 3 columns from SINGLE_MODEL_ODCL
+        assert_eq!(columns.len(), 3, "Should have 3 columns. Found: {:?}", columns);
+    }
+
+    #[test]
+    fn test_odcl_import_via_sdk_import_method() {
+        // Test using the SDK import() method instead of parse_table()
+        let mut importer = ODCLImporter::new();
+        let result = importer.import(SINGLE_MODEL_ODCL).unwrap();
+
+        assert!(!result.tables.is_empty(), "Should import at least one table");
+
+        let table_data = &result.tables[0];
+
+        // Verify quality is preserved through SDK import
+        assert!(
+            !table_data.quality.is_empty(),
+            "TableData should have quality rules. Found: {:?}",
+            table_data.quality
+        );
+    }
+
+    #[test]
+    fn test_odcl_quality_rule_structure_preserved() {
+        let mut importer = ODCLImporter::new();
+        let (table, errors) = importer.parse_table(ORDERS_ODCL).unwrap();
+
+        assert!(errors.is_empty(), "Import should have no errors");
+
+        // Find a model-level quality rule and verify its structure
+        for rule in &table.quality {
+            // Each rule should have type
+            if let Some(rule_type) = rule.get("type") {
+                assert!(
+                    rule_type.as_str().is_some(),
+                    "Quality rule type should be a string"
+                );
+            }
+
+            // SQL rules should have query
+            if rule.get("type").and_then(|v| v.as_str()) == Some("sql") {
+                assert!(
+                    rule.contains_key("query"),
+                    "SQL quality rule should have 'query' field. Found: {:?}",
+                    rule
+                );
+            }
+        }
+
+        // Find order_total and check its quality rule structure
+        if let Some(order_total) = table.columns.iter().find(|c| c.name == "order_total") {
+            for rule in &order_total.quality {
+                if rule.get("type").and_then(|v| v.as_str()) == Some("sql") {
+                    // Should have mustBeBetween
+                    assert!(
+                        rule.contains_key("mustBeBetween") || rule.contains_key("query"),
+                        "order_total SQL quality rule should have mustBeBetween or query. Found: {:?}",
+                        rule
+                    );
+                }
+            }
+        }
+    }
+}

@@ -10,11 +10,11 @@
 //! For ODCS v3.1.0/v3.0.x format, use the ODCSImporter instead.
 
 use super::odcs_shared::{
-    ParserError, column_to_column_data, expand_nested_column, extract_catalog_schema,
-    extract_quality_from_obj, extract_shared_domains, json_value_to_serde_value,
-    normalize_data_type, parse_data_vault_classification, parse_foreign_key,
-    parse_foreign_key_from_data_contract, parse_medallion_layer, parse_scd_pattern,
-    parse_struct_fields_from_string, resolve_ref, yaml_to_json_value,
+    column_to_column_data, expand_nested_column, extract_catalog_schema, extract_quality_from_obj,
+    extract_shared_domains, json_value_to_serde_value, normalize_data_type,
+    parse_data_vault_classification, parse_foreign_key, parse_foreign_key_from_data_contract,
+    parse_medallion_layer, parse_scd_pattern, parse_struct_fields_from_string, resolve_ref,
+    yaml_to_json_value, ParserError,
 };
 use super::{ImportError, ImportResult, TableData};
 use crate::models::enums::{DataVaultClassification, DatabaseType, MedallionLayer, SCDPattern};
@@ -652,7 +652,11 @@ impl ODCLImporter {
             Ok(f) => f,
             Err(_) => {
                 // Return empty table with errors
-                let quality_rules = self.extract_quality_rules(data);
+                // Extract quality rules from both root and model level
+                let mut quality_rules = self.extract_quality_rules(data);
+                let model_data_value = JsonValue::Object(model_data.clone());
+                let model_quality_rules = self.extract_quality_rules(&model_data_value);
+                quality_rules.extend(model_quality_rules);
                 let table_uuid = self.extract_table_uuid(data);
                 let table = Table {
                     id: table_uuid,
@@ -833,8 +837,15 @@ impl ODCLImporter {
             }
         }
 
-        // Extract quality rules
-        let quality_rules = self.extract_quality_rules(data);
+        // Extract quality rules from both root level and model level
+        // Root-level quality rules (contract-level)
+        let mut quality_rules = self.extract_quality_rules(data);
+
+        // Model-level quality rules (from models.<name>.quality)
+        // This is the primary location for quality rules in Data Contract Specification format
+        let model_data_value = JsonValue::Object(model_data.clone());
+        let model_quality_rules = self.extract_quality_rules(&model_data_value);
+        quality_rules.extend(model_quality_rules);
 
         // Store sharedDomains in metadata
         if !shared_domains.is_empty() {
