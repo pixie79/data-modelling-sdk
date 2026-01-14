@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.7] - 2026-01-14
+
+### Fixed
+
+- **fix(odcl)**: Import model-level quality rules from ODCL Data Contract format (#64)
+  - Fixed bug where `models.<name>.quality` rules were not being captured during ODCL import
+  - Quality rules are now extracted from both root level and model level in Data Contract Specification format
+  - Ensures all quality rules defined at the model level are preserved when converting ODCL to ODCS
+
+### Added
+
+- **test(odcl)**: Comprehensive E2E tests for ODCL import
+  - 13 new tests verifying ODCL to ODCS conversion preserves all fields
+  - Tests based on official datacontract-specification examples
+  - Coverage for: model-level quality, field-level quality, metadata, servicelevels, terms, servers, tags, column descriptions, $ref resolution, and roundtrip export
+
 ## [2.0.6] - 2026-01-14
 
 ### Fixed
