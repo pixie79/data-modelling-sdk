@@ -1240,7 +1240,11 @@ schema:
         let table = &result.tables[0];
 
         // Contract-level status should be in TableData
-        assert_eq!(table.status, Some("active".to_string()), "status should be 'active'");
+        assert_eq!(
+            table.status,
+            Some("active".to_string()),
+            "status should be 'active'"
+        );
     }
 
     #[test]
@@ -1251,12 +1255,16 @@ schema:
         let table = &result.tables[0];
 
         // custom_properties should include schema-level customProperties
-        assert!(!table.custom_properties.is_empty(), "custom_properties should not be empty");
+        assert!(
+            !table.custom_properties.is_empty(),
+            "custom_properties should not be empty"
+        );
 
         // Check for schema-level custom property
-        let has_schema_level = table.custom_properties.iter().any(|cp| {
-            cp.get("property").and_then(|v| v.as_str()) == Some("schemaLevel")
-        });
+        let has_schema_level = table
+            .custom_properties
+            .iter()
+            .any(|cp| cp.get("property").and_then(|v| v.as_str()) == Some("schemaLevel"));
         assert!(has_schema_level, "Should have schemaLevel custom property");
     }
 
@@ -1266,11 +1274,21 @@ schema:
         let result = importer.import(TEST_YAML).expect("Import failed");
 
         let table = &result.tables[0];
-        let id_column = table.columns.iter().find(|c| c.name == "id").expect("id column not found");
+        let id_column = table
+            .columns
+            .iter()
+            .find(|c| c.name == "id")
+            .expect("id column not found");
 
         // Column should have custom_properties
-        assert!(!id_column.custom_properties.is_empty(), "id column custom_properties should not be empty");
-        assert!(id_column.custom_properties.contains_key("columnLevel"), "Should have columnLevel custom property");
+        assert!(
+            !id_column.custom_properties.is_empty(),
+            "id column custom_properties should not be empty"
+        );
+        assert!(
+            id_column.custom_properties.contains_key("columnLevel"),
+            "Should have columnLevel custom property"
+        );
     }
 
     #[test]
@@ -1279,7 +1297,11 @@ schema:
         let contract = importer.import_contract(TEST_YAML).expect("Import failed");
 
         // Contract-level status
-        assert_eq!(contract.status, Some("active".to_string()), "status should be 'active'");
+        assert_eq!(
+            contract.status,
+            Some("active".to_string()),
+            "status should be 'active'"
+        );
     }
 
     #[test]
@@ -1290,8 +1312,17 @@ schema:
         let schema = &contract.schema[0];
 
         // Schema should have custom_properties
-        assert!(!schema.custom_properties.is_empty(), "schema custom_properties should not be empty");
-        assert!(schema.custom_properties.iter().any(|cp| cp.property == "schemaLevel"), "Should have schemaLevel");
+        assert!(
+            !schema.custom_properties.is_empty(),
+            "schema custom_properties should not be empty"
+        );
+        assert!(
+            schema
+                .custom_properties
+                .iter()
+                .any(|cp| cp.property == "schemaLevel"),
+            "Should have schemaLevel"
+        );
     }
 
     #[test]
@@ -1303,8 +1334,17 @@ schema:
         let id_prop = schema.get_property("id").expect("id property not found");
 
         // Property should have custom_properties
-        assert!(!id_prop.custom_properties.is_empty(), "id property custom_properties should not be empty");
-        assert!(id_prop.custom_properties.iter().any(|cp| cp.property == "columnLevel"), "Should have columnLevel");
+        assert!(
+            !id_prop.custom_properties.is_empty(),
+            "id property custom_properties should not be empty"
+        );
+        assert!(
+            id_prop
+                .custom_properties
+                .iter()
+                .any(|cp| cp.property == "columnLevel"),
+            "Should have columnLevel"
+        );
     }
 }
 
@@ -1314,8 +1354,8 @@ schema:
 ///
 /// Based on: https://github.com/datacontract/datacontract-specification/blob/main/examples/orders-latest/datacontract.yaml
 mod odcl_e2e_tests {
-    use data_modelling_core::import::odcl::ODCLImporter;
     use data_modelling_core::export::odcs::ODCSExporter;
+    use data_modelling_core::import::odcl::ODCLImporter;
 
     /// Sample ODCL (Data Contract Specification) based on the official example
     /// from https://github.com/datacontract/datacontract-specification
@@ -1571,7 +1611,11 @@ tags:
         let mut importer = ODCLImporter::new();
         let (table, errors) = importer.parse_table(SINGLE_MODEL_ODCL).unwrap();
 
-        assert!(errors.is_empty(), "Import should have no errors: {:?}", errors);
+        assert!(
+            errors.is_empty(),
+            "Import should have no errors: {:?}",
+            errors
+        );
         assert_eq!(table.name, "orders");
 
         // Model-level quality rules should be captured
@@ -1622,7 +1666,11 @@ tags:
         let mut importer = ODCLImporter::new();
         let (table, errors) = importer.parse_table(SINGLE_MODEL_ODCL).unwrap();
 
-        assert!(errors.is_empty(), "Import should have no errors: {:?}", errors);
+        assert!(
+            errors.is_empty(),
+            "Import should have no errors: {:?}",
+            errors
+        );
 
         // Find order_total column and verify it has quality rules
         let order_total_col = table.columns.iter().find(|c| c.name == "order_total");
@@ -1746,7 +1794,9 @@ tags:
         // Verify expected tags
         let tag_strings: Vec<String> = table.tags.iter().map(|t| t.to_string()).collect();
         assert!(
-            tag_strings.iter().any(|t| t.contains("checkout") || t.contains("orders")),
+            tag_strings
+                .iter()
+                .any(|t| t.contains("checkout") || t.contains("orders")),
             "Should have checkout or orders tag. Found: {:?}",
             tag_strings
         );
@@ -1780,7 +1830,11 @@ tags:
         let mut importer = ODCLImporter::new();
         let (table, errors) = importer.parse_table(ORDERS_ODCL).unwrap();
 
-        assert!(errors.is_empty(), "Import should have no errors: {:?}", errors);
+        assert!(
+            errors.is_empty(),
+            "Import should have no errors: {:?}",
+            errors
+        );
 
         // order_id uses $ref to definitions/order_id
         let order_id_col = table.columns.iter().find(|c| c.name == "order_id");
@@ -1789,7 +1843,8 @@ tags:
 
         // Description should be resolved from definition
         assert!(
-            order_id_col.description.contains("internal ID") || !order_id_col.relationships.is_empty(),
+            order_id_col.description.contains("internal ID")
+                || !order_id_col.relationships.is_empty(),
             "order_id should have description from definition or relationship. Found desc: '{}', relationships: {:?}",
             order_id_col.description,
             order_id_col.relationships
@@ -1821,10 +1876,10 @@ tags:
 
         // If we have model-level quality, it should appear in the export
         assert!(
-            exported_yaml.contains("mustBeLessThan") ||
-            exported_yaml.contains("mustBeGreaterThan") ||
-            exported_yaml.contains("Row Count") ||
-            exported_yaml.contains("maximum duration"),
+            exported_yaml.contains("mustBeLessThan")
+                || exported_yaml.contains("mustBeGreaterThan")
+                || exported_yaml.contains("Row Count")
+                || exported_yaml.contains("maximum duration"),
             "Exported YAML should contain quality rule content. YAML:\n{}",
             exported_yaml
         );
@@ -1848,10 +1903,18 @@ tags:
         );
 
         // Should have order_total (long type)
-        assert!(columns.contains(&"order_total"), "Should have order_total field");
+        assert!(
+            columns.contains(&"order_total"),
+            "Should have order_total field"
+        );
 
         // Verify we have all 3 columns from SINGLE_MODEL_ODCL
-        assert_eq!(columns.len(), 3, "Should have 3 columns. Found: {:?}", columns);
+        assert_eq!(
+            columns.len(),
+            3,
+            "Should have 3 columns. Found: {:?}",
+            columns
+        );
     }
 
     #[test]
@@ -1860,7 +1923,10 @@ tags:
         let mut importer = ODCLImporter::new();
         let result = importer.import(SINGLE_MODEL_ODCL).unwrap();
 
-        assert!(!result.tables.is_empty(), "Should import at least one table");
+        assert!(
+            !result.tables.is_empty(),
+            "Should import at least one table"
+        );
 
         let table_data = &result.tables[0];
 

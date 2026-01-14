@@ -10,11 +10,11 @@
 //! For ODCS v3.1.0/v3.0.x format, use the ODCSImporter instead.
 
 use super::odcs_shared::{
-    column_to_column_data, expand_nested_column, extract_catalog_schema, extract_quality_from_obj,
-    extract_shared_domains, json_value_to_serde_value, normalize_data_type,
-    parse_data_vault_classification, parse_foreign_key, parse_foreign_key_from_data_contract,
-    parse_medallion_layer, parse_scd_pattern, parse_struct_fields_from_string, resolve_ref,
-    yaml_to_json_value, ParserError,
+    ParserError, column_to_column_data, expand_nested_column, extract_catalog_schema,
+    extract_quality_from_obj, extract_shared_domains, json_value_to_serde_value,
+    normalize_data_type, parse_data_vault_classification, parse_foreign_key,
+    parse_foreign_key_from_data_contract, parse_medallion_layer, parse_scd_pattern,
+    parse_struct_fields_from_string, resolve_ref, yaml_to_json_value,
 };
 use super::{ImportError, ImportResult, TableData};
 use crate::models::enums::{DataVaultClassification, DatabaseType, MedallionLayer, SCDPattern};
