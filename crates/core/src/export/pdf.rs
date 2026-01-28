@@ -763,10 +763,10 @@ impl PdfExporter {
                 }
 
                 // Key information
-                if col.primary_key {
-                    if let Some(pos) = col.primary_key_position {
-                        md.push_str(&format!("**Primary Key Position:** {}\n\n", pos));
-                    }
+                if col.primary_key
+                    && let Some(pos) = col.primary_key_position
+                {
+                    md.push_str(&format!("**Primary Key Position:** {}\n\n", pos));
                 }
 
                 if col.secondary_key {
@@ -778,10 +778,10 @@ impl PdfExporter {
                 }
 
                 // Partitioning
-                if col.partitioned {
-                    if let Some(pos) = col.partition_key_position {
-                        md.push_str(&format!("**Partition Key Position:** {}\n\n", pos));
-                    }
+                if col.partitioned
+                    && let Some(pos) = col.partition_key_position
+                {
+                    md.push_str(&format!("**Partition Key Position:** {}\n\n", pos));
                 }
 
                 // Constraints

@@ -524,21 +524,21 @@ fn fix_parent_logical_types(properties: &mut [Property], table: &Table) {
         }
 
         // Also fix items if present
-        if let Some(ref mut items) = prop.items {
-            if !items.properties.is_empty() {
-                // For array items, we need to check columns with the .[] suffix
-                let items_prefix = format!("{}.[]", prop.name);
-                if let Some(items_col) = table.columns.iter().find(|c| c.name == items_prefix) {
-                    let items_type_upper = items_col.data_type.to_uppercase();
-                    if items_type_upper.starts_with("STRUCT<")
-                        || items_type_upper == "STRUCT"
-                        || items_type_upper == "OBJECT"
-                    {
-                        items.logical_type = "object".to_string();
-                    }
+        if let Some(ref mut items) = prop.items
+            && !items.properties.is_empty()
+        {
+            // For array items, we need to check columns with the .[] suffix
+            let items_prefix = format!("{}.[]", prop.name);
+            if let Some(items_col) = table.columns.iter().find(|c| c.name == items_prefix) {
+                let items_type_upper = items_col.data_type.to_uppercase();
+                if items_type_upper.starts_with("STRUCT<")
+                    || items_type_upper == "STRUCT"
+                    || items_type_upper == "OBJECT"
+                {
+                    items.logical_type = "object".to_string();
                 }
-                fix_parent_logical_types(&mut items.properties, table);
             }
+            fix_parent_logical_types(&mut items.properties, table);
         }
     }
 }
@@ -946,7 +946,7 @@ impl ODCSContract {
     /// ```
     pub fn from_table(table: &Table) -> Self {
         // Start with from_tables which handles most metadata extraction
-        let mut contract = Self::from_tables(&[table.clone()]);
+        let mut contract = Self::from_tables(std::slice::from_ref(table));
 
         // Use table.id as contract id (matches existing export behavior)
         contract.id = table.id.to_string();
@@ -983,18 +983,18 @@ impl ODCSContract {
         }
 
         // Servicelevels (note: ODCS uses "servicelevels" key in YAML but "service_levels" in struct)
-        if let Some(servicelevels) = table.odcl_metadata.get("servicelevels") {
-            if contract.service_levels.is_empty() {
-                contract.service_levels =
-                    serde_json::from_value(servicelevels.clone()).unwrap_or_default();
-            }
+        if let Some(servicelevels) = table.odcl_metadata.get("servicelevels")
+            && contract.service_levels.is_empty()
+        {
+            contract.service_levels =
+                serde_json::from_value(servicelevels.clone()).unwrap_or_default();
         }
 
         // Pricing -> price (ODCS uses "price" field)
-        if let Some(pricing) = table.odcl_metadata.get("pricing") {
-            if contract.price.is_none() {
-                contract.price = serde_json::from_value(pricing.clone()).ok();
-            }
+        if let Some(pricing) = table.odcl_metadata.get("pricing")
+            && contract.price.is_none()
+        {
+            contract.price = serde_json::from_value(pricing.clone()).ok();
         }
 
         // Use table tags if contract tags are empty
