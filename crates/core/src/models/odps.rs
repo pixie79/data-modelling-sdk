@@ -35,6 +35,7 @@ pub enum ODPSStatus {
 
 /// Authoritative definition
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ODPSAuthoritativeDefinition {
     /// Type of definition
     pub r#type: String,
@@ -47,6 +48,7 @@ pub struct ODPSAuthoritativeDefinition {
 
 /// Custom property
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ODPSCustomProperty {
     /// Property name
     pub property: String,
@@ -59,6 +61,7 @@ pub struct ODPSCustomProperty {
 
 /// ODPS description
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ODPSDescription {
     /// Intended purpose
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -79,6 +82,7 @@ pub struct ODPSDescription {
 
 /// Input port
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ODPSInputPort {
     /// Port name
     pub name: String,
@@ -87,7 +91,11 @@ pub struct ODPSInputPort {
     /// Contract ID (links to ODCS Table)
     pub contract_id: String,
     /// Tags
-    #[serde(default, deserialize_with = "deserialize_tags")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "deserialize_tags"
+    )]
     pub tags: Vec<Tag>,
     /// Custom properties
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -99,6 +107,7 @@ pub struct ODPSInputPort {
 
 /// SBOM (Software Bill of Materials)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ODPSSBOM {
     /// SBOM type
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -109,6 +118,7 @@ pub struct ODPSSBOM {
 
 /// Input contract dependency
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ODPSInputContract {
     /// Contract ID
     pub id: String,
@@ -118,6 +128,7 @@ pub struct ODPSInputContract {
 
 /// Output port
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ODPSOutputPort {
     /// Port name
     pub name: String,
@@ -139,7 +150,11 @@ pub struct ODPSOutputPort {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_contracts: Option<Vec<ODPSInputContract>>,
     /// Tags
-    #[serde(default, deserialize_with = "deserialize_tags")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "deserialize_tags"
+    )]
     pub tags: Vec<Tag>,
     /// Custom properties
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -151,6 +166,7 @@ pub struct ODPSOutputPort {
 
 /// Management port
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ODPSManagementPort {
     /// Port name
     pub name: String,
@@ -169,7 +185,11 @@ pub struct ODPSManagementPort {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Tags
-    #[serde(default, deserialize_with = "deserialize_tags")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "deserialize_tags"
+    )]
     pub tags: Vec<Tag>,
     /// Custom properties
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -181,6 +201,7 @@ pub struct ODPSManagementPort {
 
 /// Support channel
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ODPSSupport {
     /// Channel name
     pub channel: String,
@@ -199,7 +220,11 @@ pub struct ODPSSupport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub invitation_url: Option<String>,
     /// Tags
-    #[serde(default, deserialize_with = "deserialize_tags")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "deserialize_tags"
+    )]
     pub tags: Vec<Tag>,
     /// Custom properties
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -211,6 +236,7 @@ pub struct ODPSSupport {
 
 /// Team member
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ODPSTeamMember {
     /// Username or email
     pub username: String,
@@ -233,7 +259,11 @@ pub struct ODPSTeamMember {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub replaced_by_username: Option<String>,
     /// Tags
-    #[serde(default, deserialize_with = "deserialize_tags")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "deserialize_tags"
+    )]
     pub tags: Vec<Tag>,
     /// Custom properties
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -245,6 +275,7 @@ pub struct ODPSTeamMember {
 
 /// Team
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ODPSTeam {
     /// Team name
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -256,7 +287,11 @@ pub struct ODPSTeam {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub members: Option<Vec<ODPSTeamMember>>,
     /// Tags
-    #[serde(default, deserialize_with = "deserialize_tags")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "deserialize_tags"
+    )]
     pub tags: Vec<Tag>,
     /// Custom properties
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -268,9 +303,9 @@ pub struct ODPSTeam {
 
 /// Data Product - main structure
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ODPSDataProduct {
     /// API version
-    #[serde(rename = "apiVersion")]
     pub api_version: String,
     /// Kind (always "DataProduct")
     pub kind: String,
@@ -300,7 +335,11 @@ pub struct ODPSDataProduct {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_properties: Option<Vec<ODPSCustomProperty>>,
     /// Tags
-    #[serde(default, deserialize_with = "deserialize_tags")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "deserialize_tags"
+    )]
     pub tags: Vec<Tag>,
     /// Input ports
     #[serde(skip_serializing_if = "Option::is_none")]
